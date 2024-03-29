@@ -1,6 +1,14 @@
 import socket
 import threading
 
+from sys import path
+from pathlib import Path
+
+# modify path to for test folder structure
+path.append(Path(__file__).parent.as_uri())
+print(f"Path: {path=}")
+print(f"File: {__file__=}")
+
 import codec
 
 
@@ -29,11 +37,4 @@ def handle_conn(conn: socket.socket, addr):
 
 
 if __name__ == "__main__":
-    from sys import path
-    from pathlib import Path
-
-    # modify path to for test folder structure
-    path.append(Path(__file__).parent.as_uri())
-    print(f"Path: {path=}")
-    print(f"File: {__file__=}")
     main()
