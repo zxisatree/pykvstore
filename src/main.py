@@ -1,16 +1,12 @@
 import socket
 import threading
 
-import sys, site
-
-print(f"{sys.path=}")
-print(f"{site.getsitepackages()=}")
-
 import codec
 
 
 def main():
     try:
+        socket.setdefaulttimeout(60)
         server_socket = socket.create_server(("localhost", 6379))
         while True:
             print("main thread waiting...")
@@ -33,4 +29,9 @@ def handle_conn(conn: socket.socket, addr):
 
 
 if __name__ == "__main__":
+    from sys import path
+    from pathlib import Path
+
+    # modify path to for test folder structure
+    path.append(Path(__file__).parent.as_uri())
     main()

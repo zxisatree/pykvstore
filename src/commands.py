@@ -22,5 +22,12 @@ class EchoCommand(Command):
 
 
 class CommandCommand(Command):
+    # TODO
+    def execute(self) -> str:
+        return "+OK\r\n"
+
+
+class InfoCommand(Command):
+    # TODO
     def execute(self) -> str:
         return "+OK\r\n"

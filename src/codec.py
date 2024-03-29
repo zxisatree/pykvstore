@@ -38,6 +38,8 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
         return commands.EchoCommand(msg)
     elif cmd_str == "COMMAND":
         return commands.CommandCommand()
+    elif cmd_str == "INFO":
+        return commands.InfoCommand()
     else:
         print(f"Raising exception: Unsupported command {cmd_str}, {type(cmd_str)}")
         raise Exception(f"Unsupported command {cmd_str}, {type(cmd_str)}")
