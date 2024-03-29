@@ -36,6 +36,34 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
                 f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
             )
         return commands.EchoCommand(msg)
+    elif cmd_str == "SET":
+        key = resp_data[1]
+        value = resp_data[2]
+        if not isinstance(key, data_types.RespBulkString):
+            print(
+                f"Raising exception: Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            )
+            raise Exception(
+                f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            )
+        if not isinstance(value, data_types.RespBulkString):
+            print(
+                f"Raising exception: Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
+            )
+            raise Exception(
+                f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
+            )
+        return commands.SetCommand(key, value)
+    elif cmd_str == "GET":
+        key = resp_data[1]
+        if not isinstance(key, data_types.RespBulkString):
+            print(
+                f"Raising exception: Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            )
+            raise Exception(
+                f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            )
+        return commands.GetCommand(key)
     elif cmd_str == "COMMAND":
         return commands.CommandCommand()
     elif cmd_str == "INFO":

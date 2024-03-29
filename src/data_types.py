@@ -97,7 +97,7 @@ class RespBulkString(RespDataType):
         return f"RespBulkString({repr(self.data)})"
 
     def encode(self) -> str:
-        return f"${len(self.data)}\r\n{self.data}\r\n" if len(self.data) else "$-1\r\n"
+        return f"${len(self.data)}\r\n{self.data}\r\n" if self.data else "$-1\r\n"
 
     @staticmethod
     def decode(data: str, pos: int) -> tuple["RespBulkString", int]:
