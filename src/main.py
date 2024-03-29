@@ -9,7 +9,7 @@ def main():
         threading.Thread(target=handle_conn, args=(conn, addr)).start()
 
 
-def handle_conn(conn: socket, addr: socket._RetAddress):
+def handle_conn(conn: socket, addr):
     with conn:
         while True:
             data = conn.recv(1024)
