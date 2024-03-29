@@ -1,22 +1,30 @@
 import socket
 import threading
 
+import codec
+
 
 def main():
-    server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
-    while True:
-        conn, addr = server_socket.accept()
-        threading.Thread(target=handle_conn, args=(conn, addr)).start()
+    try:
+        server_socket = socket.create_server(("localhost", 6379))
+        while True:
+            print("main thread waiting...")
+            conn, addr = server_socket.accept()
+            threading.Thread(target=handle_conn, args=(conn, addr)).start()
+    except Exception as e:
+        print(f"Exception: {e}")
 
 
-def handle_conn(conn: socket, addr):
+def handle_conn(conn: socket.socket, addr):
     with conn:
         while True:
             data = conn.recv(1024)
             if not data:
                 break
-            print(f"{data=}")
-            conn.sendall(b"+PONG\r\n")
+            print(f"raw {data=}")
+            cmd = codec.parse_cmd(data)
+            conn.sendall(cmd.execute().encode())
+        print(f"Connection closed: {addr=}")
 
 
 if __name__ == "__main__":
