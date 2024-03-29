@@ -5,7 +5,7 @@ from sys import path
 from pathlib import Path
 
 # modify path to for test folder structure
-path.append(Path(__file__).parent.as_uri())
+path.append(str(Path(__file__).parent))
 print(f"Path: {path=}")
 print(f"File: {__file__=}")
 
