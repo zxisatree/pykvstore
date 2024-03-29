@@ -34,4 +34,6 @@ if __name__ == "__main__":
 
     # modify path to for test folder structure
     path.append(Path(__file__).parent.as_uri())
+    print(f"Path: {path=}")
+    print(f"File: {__file__=}")
     main()
