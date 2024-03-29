@@ -6,25 +6,24 @@ from pathlib import Path
 
 # modify path to for test folder structure
 path.append(str(Path(__file__).parent))
-print(f"Path: {path=}")
-print(f"File: {__file__=}")
 
 import codec
 
 
 def main():
+    cache = {}
     try:
-        socket.setdefaulttimeout(60)
+        socket.setdefaulttimeout(30)
         server_socket = socket.create_server(("localhost", 6379))
         while True:
             print("main thread waiting...")
             conn, addr = server_socket.accept()
-            threading.Thread(target=handle_conn, args=(conn, addr)).start()
+            threading.Thread(target=handle_conn, args=(conn, addr, cache)).start()
     except Exception as e:
         print(f"Exception: {e}")
 
 
-def handle_conn(conn: socket.socket, addr):
+def handle_conn(conn: socket.socket, addr, cache: dict):
     with conn:
         while True:
             data = conn.recv(1024)
@@ -32,7 +31,7 @@ def handle_conn(conn: socket.socket, addr):
                 break
             print(f"raw {data=}")
             cmd = codec.parse_cmd(data)
-            conn.sendall(cmd.execute().encode())
+            conn.sendall(cmd.execute(cache).encode())
         print(f"Connection closed: {addr=}")
 
 

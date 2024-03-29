@@ -13,6 +13,32 @@ class RespDataType(ABC):
     def decode(data: str, pos: int) -> tuple["RespDataType", int]: ...
 
 
+class RespSimpleString(RespDataType):
+    def __init__(self, data: str):
+        self.data = data
+
+    def __str__(self) -> str:
+        return str(self.data)
+
+    def __repr__(self) -> str:
+        return f"RespSimpleString({repr(self.data)})"
+
+    def encode(self) -> str:
+        return f"+{self.data}\r\n"
+
+    @staticmethod
+    def decode(data: str, pos: int) -> tuple["RespSimpleString", int]:
+        start = pos
+        while pos < len(data) and not codec.is_sep(data, pos):
+            pos += 1
+        if pos >= len(data):
+            print("Invalid RESP simple string, missing \\r\\n separator")
+        simple_str = data[start:pos]
+        pos += 2
+        assert pos <= len(data)
+        return (RespSimpleString(simple_str), pos)
+
+
 class RespArray(RespDataType):
     def __init__(self, elements: list[RespDataType]):
         self.elements = elements
@@ -47,7 +73,7 @@ class RespArray(RespDataType):
         while pos < len(data) and not codec.is_sep(data, pos):
             print(f"{pos=}, {data[pos]=}")
             pos += 1
-        if pos == len(data):
+        if pos >= len(data):
             print("Invalid RESP array, missing \\r\\n separator")
         array_len = int(data[start:pos])
         pos += 2
@@ -71,14 +97,14 @@ class RespBulkString(RespDataType):
         return f"RespBulkString({repr(self.data)})"
 
     def encode(self) -> str:
-        return f"${len(self.data)}\r\n{self.data}\r\n"
+        return f"${len(self.data)}\r\n{self.data}\r\n" if len(self.data) else "$-1\r\n"
 
     @staticmethod
     def decode(data: str, pos: int) -> tuple["RespBulkString", int]:
         start = pos
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
-        if pos == len(data):
+        if pos >= len(data):
             print("Invalid RESP bulk string, missing \\r\\n separator")
         bulk_str_len = int(data[start:pos])
         pos += 2
