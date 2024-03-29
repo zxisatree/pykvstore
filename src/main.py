@@ -1,11 +1,16 @@
 import socket
+import threading
 
 
 def main():
     server_socket = socket.create_server(("localhost", 6379), reuse_port=True)
-    conn, addr = server_socket.accept()  # wait for client
+    while True:
+        conn, addr = server_socket.accept()
+        threading.Thread(target=handle_conn, args=(conn, addr)).start()
+
+
+def handle_conn(conn: socket, addr: socket._RetAddress):
     with conn:
-        # loop
         while True:
             data = conn.recv(1024)
             if not data:
