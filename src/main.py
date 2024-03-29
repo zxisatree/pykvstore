@@ -1,6 +1,11 @@
 import socket
 import threading
 
+import sys, site
+
+print(f"{sys.path=}")
+print(f"{site.getsitepackages()=}")
+
 import codec
 
 
@@ -28,8 +33,4 @@ def handle_conn(conn: socket.socket, addr):
 
 
 if __name__ == "__main__":
-    import sys, site
-
-    print(f"{sys.path=}")
-    print(f"{site.getsitepackages()=}")
     main()
