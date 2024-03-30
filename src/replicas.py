@@ -101,10 +101,12 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         print(f"Replica sent PSYNC, got {data=}")
 
         while True:
+            print("Replica waiting for master...")
             data = self.master_conn.recv(constants.BUFFER_SIZE)
-            if not data:
-                break
             print(f"from master: raw {data=}")
+            if not data:
+                print("Replica breaking")
+                break
             cmds = codec.parse_cmd(data)
             if isinstance(cmds, list):
                 for cmd in cmds:
