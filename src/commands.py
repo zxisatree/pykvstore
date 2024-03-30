@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 import socket
+import threading
+from datetime import timedelta
+from queue import Queue
 
 import constants
 import data_types
@@ -155,7 +158,39 @@ class WaitCommand(Command):
     def __init__(self, raw_cmd: bytes, replica_count: int, timeout: int):
         self._raw_cmd = raw_cmd
         self.replica_count = replica_count
-        self.timeout = timeout
+        self.timeout = timedelta(milliseconds=timeout)
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
-        return data_types.RespInteger(len(replica_handler.slaves)).encode()
+    def wait_for_slave(
+        self,
+        conn: socket.socket,
+        queue: Queue,
+        slave_conn: socket.socket,
+    ):
+        slave_conn.sendall(self._raw_cmd)
+        # wait for response
+        conn.recv(constants.BUFFER_SIZE)
+        queue.put(True)
+
+    def execute(
+        self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
+    ) -> bytes:
+        if replica_handler.is_master:
+            queue = Queue()
+            ack_count = 0
+            for slave in replica_handler.slaves:
+                threading.Thread(
+                    target=self.wait_for_slave, args=(conn, queue, slave)
+                ).start()
+
+            start = datetime.now()
+            while datetime.now() - start < self.timeout:
+                if ack_count >= self.replica_count:
+                    break
+                try:
+                    queue.get(timeout=(datetime.now() - start).total_seconds())
+                    ack_count += 1
+                except:
+                    pass
+            return data_types.RespInteger(len(replica_handler.slaves)).encode()
+        else:
+            return constants.OK_SIMPLE_STRING.encode()
