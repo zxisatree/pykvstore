@@ -88,7 +88,9 @@ class ReplConfGetAckCommand(Command):
             [
                 data_types.RespBulkString(b"REPLCONF"),
                 data_types.RespBulkString(b"ACK"),
-                data_types.RespBulkString(replica_handler.info["master_repl_offset"]),
+                data_types.RespBulkString(
+                    str(replica_handler.info["master_repl_offset"]).encode()
+                ),
             ]
         ).encode()
 
