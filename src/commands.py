@@ -69,3 +69,10 @@ class InfoCommand(Command):
 class ReplConfCommand(Command):
     def execute(self, db, replica_handler) -> str:
         return constants.OK_RESPONSE
+
+
+class PsyncCommand(Command):
+    def execute(self, db, replica_handler: replicas.ReplicaHandler) -> str:
+        return data_types.RespSimpleString(
+            f"FULLRESYNC {replica_handler.ip} 0"
+        ).encode()

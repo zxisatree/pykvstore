@@ -76,6 +76,8 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
         return commands.InfoCommand()
     elif cmd_str == "REPLCONF":
         return commands.ReplConfCommand()
+    elif cmd_str == "PSYNC":
+        return commands.PsyncCommand()
     else:
         exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
         print(exception_msg)

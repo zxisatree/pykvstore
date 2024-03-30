@@ -19,8 +19,8 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.info = {
             "role": "master" if is_master else "slave",
             "connected_slaves": 0,
-            "master_replid": self.id,
-            "master_repl_offset": 0,
+            "master_replid": self.id if is_master else "?",
+            "master_repl_offset": 0 if is_master else -1,
             "second_repl_offset": -1,
             "repl_backlog_active": 0,
             "repl_backlog_size": 1048576,
@@ -74,6 +74,19 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             # check if we get OK
             if data.decode() != constants.OK_RESPONSE:
                 print("Failed to connect to master")
+            self.master_conn.sendall(
+                data_types.RespArray(
+                    [
+                        data_types.RespBulkString("PSYNC"),
+                        data_types.RespBulkString(str(self.info["master_replid"])),
+                        data_types.RespBulkString(str(self.info["master_repl_offset"])),
+                    ]
+                )
+                .encode()
+                .encode()
+            )
+            data = self.master_conn.recv(1024)
+            print(f"Replica sent PSYNC, got {data=}")
 
     def get_info(self) -> str:
         # encode each kv as a RespBulkString
