@@ -22,7 +22,7 @@ def main():
     )
 
     try:
-        socket.setdefaulttimeout(30)
+        socket.setdefaulttimeout(20)
         server_socket = socket.create_server(("localhost", args.port))
         while True:
             print("main thread waiting...")
