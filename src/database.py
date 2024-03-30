@@ -22,7 +22,9 @@ class Database(metaclass=SingletonMeta):
 
     def __getitem__(self, key: str) -> str:
         with self.lock:
-            if key not in self.store or self.expire_one(key):
+            if key not in self.store:
+                return ""
+            if self.store[key][1] and self.expire_one(key):
                 return ""
             return self.store[key][0]
 
@@ -36,7 +38,7 @@ class Database(metaclass=SingletonMeta):
 
     def __contains__(self, key: str) -> bool:
         with self.lock:
-            return key in map(lambda x: x[0], self.store.keys())
+            return key in map(lambda x: x, self.store.keys())
 
     def __str__(self) -> str:
         with self.lock:
