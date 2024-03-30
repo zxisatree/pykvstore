@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-import base64
 from datetime import datetime
+import socket
 
 import data_types
 import database
@@ -14,11 +14,12 @@ class Command(ABC):
         self,
         db: database.Database | None,
         replica_handler: replicas.ReplicaHandler | None,
+        conn: socket.socket | None,
     ) -> str | list[str | bytes]: ...
 
 
 class PingCommand(Command):
-    def execute(self, db, replica_handler) -> str:
+    def execute(self, db, replica_handler, conn) -> str:
         return data_types.RespSimpleString("PONG").encode()
 
 
@@ -26,7 +27,7 @@ class EchoCommand(Command):
     def __init__(self, bulk_str: data_types.RespBulkString):
         self.msg = bulk_str.data
 
-    def execute(self, db, replica_handler) -> str:
+    def execute(self, db, replica_handler, conn) -> str:
         return data_types.RespSimpleString(self.msg).encode()
 
 
@@ -44,7 +45,7 @@ class SetCommand(Command):
         self.expiry = expiry
 
     def execute(
-        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
     ) -> str:
         replica_handler.propogate(self.raw_cmd)
         db[self.key] = (self.value, self.expiry)
@@ -55,7 +56,7 @@ class GetCommand(Command):
     def __init__(self, key: data_types.RespBulkString):
         self.key = key.data
 
-    def execute(self, db: database.Database, replica_handler) -> str:
+    def execute(self, db: database.Database, replica_handler, conn) -> str:
         if self.key in db:
             return data_types.RespBulkString(db[self.key]).encode()
         return constants.NULL_BULK_STRING
@@ -63,27 +64,37 @@ class GetCommand(Command):
 
 class CommandCommand(Command):
     # TODO
-    def execute(self, db, replica_handler) -> str:
+    def execute(self, db, replica_handler, conn) -> str:
         return constants.OK_RESPONSE
 
 
 class InfoCommand(Command):
-    def execute(self, db, replica_handler: replicas.ReplicaHandler) -> str:
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> str:
         return replica_handler.get_info()
 
 
 class ReplConfCommand(Command):
-    def execute(self, db, replica_handler) -> str:
+    def execute(self, db, replica_handler, conn) -> str:
         return constants.OK_RESPONSE
 
 
 class PsyncCommand(Command):
     def execute(
-        self, db, replica_handler: replicas.ReplicaHandler
+        self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> list[str | bytes]:
+        replica_handler.slaves.append(conn)
         return [
             data_types.RespSimpleString(
                 f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}"
             ).encode(),
             data_types.RdbFile("").encode(),
         ]
+
+
+class RdbFileCommand(Command):
+    def __init__(self, data: bytes) -> None:
+        self.data = data
+
+    # slave received a RDB file
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> str:
+        return ""

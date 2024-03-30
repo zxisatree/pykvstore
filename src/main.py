@@ -23,7 +23,7 @@ def main():
     )
 
     try:
-        socket.setdefaulttimeout(20)
+        socket.setdefaulttimeout(constants.CONN_TIMEOUT)
         server_socket = socket.create_server(("localhost", args.port))
         while True:
             print("main thread waiting...")
@@ -48,7 +48,7 @@ def handle_conn(
                 break
             print(f"raw {data=}")
             cmd = codec.parse_cmd(data)
-            executed = cmd.execute(db, replica_handler)
+            executed = cmd.execute(db, replica_handler, conn)
             if isinstance(executed, list):
                 for resp in executed:
                     print(f"responding {resp}")

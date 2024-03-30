@@ -6,7 +6,11 @@ import data_types
 
 # *2\r\n$4\r\necho\r\n$3\r\nhey\r\n = ["echo", "hey"] encoded using the Redis protocol
 def parse_cmd(cmd_bytes: bytes) -> commands.Command:
-    cmd = cmd_bytes.decode()
+    try:
+        cmd = cmd_bytes.decode()
+    except:
+        # either invalid cmd or RDB file
+        return commands.RdbFileCommand(cmd_bytes)
     resp_data, pos = parse(cmd, 0)
     print(f"Codec.parse {resp_data=}, {pos=}")
     if not isinstance(resp_data, data_types.RespArray):
@@ -43,7 +47,7 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
             print(exception_msg)
             raise Exception(exception_msg)
         if len(resp_data) <= 3:
-            return commands.SetCommand(cmd_str, key, value, None)
+            return commands.SetCommand(cmd, key, value, None)
         # parse px command
         px_cmd = resp_data[3]
         expiry = resp_data[4]
@@ -60,7 +64,7 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
             print(exception_msg)
             raise Exception(exception_msg)
         return commands.SetCommand(
-            cmd_str,
+            cmd,
             key,
             value,
             datetime.now() + timedelta(milliseconds=int(expiry.data)),

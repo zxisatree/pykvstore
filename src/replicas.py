@@ -26,7 +26,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         if replica_of:
             self.master_ip = replica_of[0]
             self.master_port = replica_of[1]
-        self.slaves = []
+        self.slaves: list[socket.socket] = []
         self.info = {
             "role": "master" if is_master else "slave",
             "connected_slaves": 0,
@@ -44,7 +44,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
 
     def connect_to_master(self, db: database.Database):
         self.master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.master_conn.settimeout(10)
+        self.master_conn.settimeout(constants.CONN_TIMEOUT)
         self.master_conn.connect((self.master_ip, int(self.master_port)))
         self.master_conn.sendall(
             data_types.RespArray([data_types.RespBulkString("ping")]).encode().encode()
@@ -52,7 +52,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent ping, got {data=}")
         # check if we get PONG
-        if data.decode() != commands.PingCommand().execute(None, None):
+        if data.decode() != commands.PingCommand().execute(None, None, None):
             print("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
@@ -104,12 +104,13 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             data = self.master_conn.recv(constants.BUFFER_SIZE)
             if not data:
                 break
-            print(f"raw {data=}")
+            print(f"from master: raw {data=}")
             cmd = codec.parse_cmd(data)
-            cmd.execute(db, self)
+            cmd.execute(db, self, self.master_conn)
 
     def propogate(self, raw_cmd: str):
         for slave in self.slaves:
+            print(f"Propogating to {slave=}")
             slave.sendall(raw_cmd.encode())
 
     def get_info(self) -> str:
