@@ -1,4 +1,2 @@
-import data_types
-
-OK_RESPONSE = data_types.RespSimpleString("OK").encode()
+OK_RESPONSE = "+OK\r\n"
 NULL_BULK_STRING = "$-1\r\n"
