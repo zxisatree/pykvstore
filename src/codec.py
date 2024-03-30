@@ -23,11 +23,13 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command | list[commands.Command]:
             )
             print(f"Raising exception: {exception_msg}")
             raise Exception(exception_msg)
-        final_cmds.append(parse_resp_cmd(cmd[orig:pos], resp_data))
+        final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
     return final_cmds
 
 
-def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Command:
+def parse_resp_cmd(
+    resp_data: data_types.RespArray, cmd: str, start: int, end: int
+) -> commands.Command:
     cmd_resp = resp_data[0]
     if not isinstance(cmd_resp, data_types.RespBulkString):
         exception_msg = f"Unsupported command (first element is not bulk string) {resp_data[0]}, {type(resp_data[0])}"
@@ -55,7 +57,7 @@ def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Comman
             print(exception_msg)
             raise Exception(exception_msg)
         if len(resp_data) <= 3:
-            return commands.SetCommand(cmd, key, value, None)
+            return commands.SetCommand(cmd[start:end], key, value, None)
         # parse px command
         px_cmd = resp_data[3]
         expiry = resp_data[4]
@@ -72,7 +74,7 @@ def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Comman
             print(exception_msg)
             raise Exception(exception_msg)
         return commands.SetCommand(
-            cmd,
+            cmd[start:end],
             key,
             value,
             datetime.now() + timedelta(milliseconds=int(expiry.data)),
@@ -90,13 +92,9 @@ def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Comman
         # should check for next word, but only replication is supported
         return commands.InfoCommand()
     elif cmd_str == "REPLCONF":
-        if len(cmd) > 1 and cmd[2].upper() == "GETACK":
-            if len(cmd) < 3 or cmd[3] != "*":
-                exception_msg = f"Unsupported command (command too short or third argument not *) {resp_data[2]}, {type(resp_data[2])}"
-                print(exception_msg)
-                raise Exception(exception_msg)
+        if len(resp_data) > 1:
             print(f"parse_cmd got ReplConfGetAckCommand")
-            return commands.ReplConfGetAckCommand(cmd)
+            return commands.ReplConfGetAckCommand(cmd[start:end])
         print(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand()
     elif cmd_str == "PSYNC":
