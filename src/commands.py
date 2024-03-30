@@ -54,7 +54,7 @@ class SetCommand(Command):
     def execute(
         self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
     ) -> bytes:
-        replica_handler.propogate(self.raw_cmd)
+        replica_handler.propogate(self._raw_cmd)
         db[self.key.decode()] = (self.value.decode(), self.expiry)
         return constants.OK_SIMPLE_STRING.encode()
 
@@ -100,7 +100,7 @@ class ReplConfGetAckCommand(Command):
         self._raw_cmd = raw_cmd
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
-        replica_handler.propogate(self.raw_cmd)
+        replica_handler.propogate(self._raw_cmd)
         return data_types.RespArray(
             [
                 data_types.RespBulkString(b"REPLCONF"),
