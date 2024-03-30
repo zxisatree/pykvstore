@@ -169,6 +169,7 @@ class WaitCommand(Command):
         slave_conn.sendall(self._raw_cmd)
         # wait for response
         conn.recv(constants.BUFFER_SIZE)
+        print(f"Slave {slave_conn} acked")
         queue.put(True)
 
     def execute(
@@ -183,7 +184,9 @@ class WaitCommand(Command):
                 ).start()
 
             start = datetime.now()
+            print(f"{datetime.now() - start=}, {self.timeout=}")
             while datetime.now() - start < self.timeout:
+                print(f"{datetime.now() - start=}")
                 if ack_count >= self.replica_count:
                     break
                 try:
