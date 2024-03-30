@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 import socket
 
+import constants
 import data_types
 import database
-import constants
 import replicas
 
 

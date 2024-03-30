@@ -110,7 +110,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             else:
                 self.respond_to_master(cmds, db)
 
-    def respond_to_master(self, cmd: commands.Command, db: database.Database):
+    def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
         print(f"replica respond_to_master {executed=}, {cmd=}")
         if isinstance(cmd, commands.ReplConfGetAckCommand):
