@@ -79,7 +79,11 @@ class ReplConfCommand(Command):
 
 
 class ReplConfGetAckCommand(Command):
+    def __init__(self, raw_cmd: str):
+        self.raw_cmd = raw_cmd
+
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> str:
+        replica_handler.propogate(self.raw_cmd)
         return data_types.RespArray(
             [
                 data_types.RespBulkString("REPLCONF"),

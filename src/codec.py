@@ -96,7 +96,7 @@ def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Comman
                 print(exception_msg)
                 raise Exception(exception_msg)
             print(f"parse_cmd got ReplConfGetAckCommand")
-            return commands.ReplConfGetAckCommand()
+            return commands.ReplConfGetAckCommand(cmd)
         print(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand()
     elif cmd_str == "PSYNC":
