@@ -102,6 +102,15 @@ class ReplConfCommand(Command):
         return constants.OK_SIMPLE_STRING.encode()
 
 
+class ReplConfAckCommand(Command):
+    def __init__(self, raw_cmd: bytes):
+        self._raw_cmd = raw_cmd
+
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+        replica_handler.ack_count += 1
+        return constants.OK_SIMPLE_STRING.encode()
+
+
 class ReplConfGetAckCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
@@ -160,42 +169,27 @@ class WaitCommand(Command):
         self.replica_count = replica_count
         self.timeout = timedelta(milliseconds=timeout)
 
-    def wait_for_slave(
-        self,
-        conn: socket.socket,
-        queue: Queue,
-        slave_conn: socket.socket,
-    ):
-        slave_conn.sendall(self._raw_cmd)
-        # wait for response
-        conn.recv(constants.BUFFER_SIZE)
-        print(f"Slave {slave_conn} acked")
-        queue.put(True)
-
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> bytes:
         if replica_handler.is_master:
-            queue = Queue()
-            ack_count = 0
+            replica_handler.ack_count = 0
             for slave in replica_handler.slaves:
-                threading.Thread(
-                    target=self.wait_for_slave, args=(conn, queue, slave)
-                ).start()
+                slave.sendall(
+                    data_types.RespArray(
+                        [
+                            data_types.RespBulkString(b"REPLCONF"),
+                            data_types.RespBulkString(b"GETACK"),
+                            data_types.RespBulkString(b"*"),
+                        ]
+                    ).encode()
+                )
 
-            start = datetime.now()
-            print(
-                f"{datetime.now() - start=}, {self.timeout=}, {self.replica_count=}, {len(replica_handler.slaves)=}"
-            )
-            while datetime.now() - start < self.timeout:
-                print(f"{datetime.now() - start=}")
-                if ack_count >= self.replica_count:
-                    break
-                try:
-                    queue.get(timeout=(datetime.now() - start).total_seconds())
-                    ack_count += 1
-                except:
-                    break
-            return data_types.RespInteger(ack_count).encode()
+            end = datetime.now() + self.timeout
+            while (
+                replica_handler.ack_count < self.replica_count and datetime.now() < end
+            ):
+                pass
+            return data_types.RespInteger(replica_handler.ack_count).encode()
         else:
             return constants.OK_SIMPLE_STRING.encode()

@@ -20,6 +20,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         db: database.Database,
     ):
         self.is_master = is_master
+        self.ack_count = 0
         self.id = str(uuid.uuid4())
         self.ip = ip
         self.port = port

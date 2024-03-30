@@ -102,6 +102,9 @@ def parse_resp_cmd(
             if cmd_str2.data.upper() == b"GETACK":
                 print(f"parse_cmd got ReplConfGetAckCommand")
                 return commands.ReplConfGetAckCommand(cmd[start:end])
+            elif cmd_str2.data.upper() == b"ACK":
+                print(f"parse_cmd got ReplConfAckCommand")
+                return commands.ReplConfAckCommand(cmd[start:end])
             return commands.ReplConfCommand(cmd[start:end])
         print(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand(cmd[start:end])
