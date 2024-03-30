@@ -66,7 +66,7 @@ def parse_resp_cmd(
             exception_msg = f"Unsupported command (fourth element is not bulk string) {resp_data[3]}, {type(resp_data[3])}"
             print(exception_msg)
             raise Exception(exception_msg)
-        if px_cmd.data.upper() != "PX":
+        if px_cmd.data.upper() != b"PX":
             exception_msg = f"Unsupported command (fourth element is not 'PX') {resp_data[3]}, {type(resp_data[3])}"
             print(exception_msg)
             raise Exception(exception_msg)
