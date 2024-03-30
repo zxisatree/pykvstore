@@ -133,7 +133,7 @@ class RespBulkString(RespDataType):
         return (RespBulkString(bulk_str), pos)
 
 
-class RdbFile(RespDataType):
+class RdbFile:
     def __init__(self, data: str):
         self.data = b64decode(
             "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
@@ -148,8 +148,8 @@ class RdbFile(RespDataType):
     def __repr__(self) -> str:
         return f"RdbFile({repr(self.data)})"
 
-    def encode(self) -> str:
-        return f"${len(self.data)}\r\n{self.data.decode()}"
+    def encode(self) -> bytes:
+        return f"${len(self.data)}\r\n".encode() + self.data
 
     @staticmethod
     def decode(data: str, pos: int) -> tuple["RdbFile", int]:

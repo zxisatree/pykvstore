@@ -51,7 +51,10 @@ def handle_conn(
             if isinstance(executed, list):
                 for resp in executed:
                     print(f"responding {resp}")
-                    conn.sendall(resp.encode())
+                    if isinstance(resp, bytes):
+                        conn.sendall(resp)
+                    if isinstance(resp, str):
+                        conn.sendall(resp.encode())
             else:
                 print(f"responding {executed}")
                 conn.sendall(executed.encode())
