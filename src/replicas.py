@@ -1,12 +1,11 @@
 import uuid
+import socket
 
 import singleton_meta
 import data_types
 
 
 class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
-    is_master: bool
-
     def __init__(self, is_master: bool, replica_of: list):
         self.is_master = is_master
         self.id = str(uuid.uuid4())
@@ -21,6 +20,16 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             "repl_backlog_first_byte_offset": 0,
             "repl_backlog_histlen": 0,
         }
+        # attempt to connect to master
+        if not is_master:
+            self.master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.master_conn.settimeout(10)
+            self.master_conn.connect(tuple(replica_of))
+            self.master_conn.sendall(
+                data_types.RespArray([data_types.RespBulkString("ping")])
+                .encode()
+                .encode()
+            )
 
     def get_info(self) -> str:
         # encode each kv as a RespBulkString
