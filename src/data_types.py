@@ -5,8 +5,8 @@ import constants
 
 
 class RespDataType(ABC):
-    def __len__(self) -> int:
-        return 0
+    @abstractmethod
+    def __len__(self) -> int: ...
 
     @abstractmethod
     def encode(self) -> str: ...
@@ -20,6 +20,9 @@ class RespDataType(ABC):
 class RespSimpleString(RespDataType):
     def __init__(self, data: str):
         self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
 
     def __str__(self) -> str:
         return str(self.data)
@@ -46,6 +49,9 @@ class RespSimpleString(RespDataType):
 class RespArray(RespDataType):
     def __init__(self, elements: list[RespDataType]):
         self.elements = elements
+
+    def __len__(self) -> int:
+        return len(self.elements)
 
     def __getitem__(self, idx) -> list[RespDataType] | RespDataType:
         res = self.elements.__getitem__(idx)
@@ -93,6 +99,9 @@ class RespArray(RespDataType):
 class RespBulkString(RespDataType):
     def __init__(self, data: str):
         self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
 
     def __str__(self) -> str:
         return str(self.data)

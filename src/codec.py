@@ -42,7 +42,7 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
             exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
             print(exception_msg)
             raise Exception(exception_msg)
-        if len(resp_data) == 3:
+        if len(resp_data) <= 3:
             return commands.SetCommand(key, value, None)
         # parse px command
         px_cmd = resp_data[3]
