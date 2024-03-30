@@ -49,7 +49,7 @@ class SetCommand(Command):
     ) -> str:
         replica_handler.propogate(self.raw_cmd)
         db[self.key] = (self.value, self.expiry)
-        return constants.OK_RESPONSE
+        return constants.OK_SIMPLE_STRING
 
 
 class GetCommand(Command):
@@ -65,7 +65,7 @@ class GetCommand(Command):
 class CommandCommand(Command):
     # TODO
     def execute(self, db, replica_handler, conn) -> str:
-        return constants.OK_RESPONSE
+        return constants.OK_SIMPLE_STRING
 
 
 class InfoCommand(Command):
@@ -75,7 +75,7 @@ class InfoCommand(Command):
 
 class ReplConfCommand(Command):
     def execute(self, db, replica_handler, conn) -> str:
-        return constants.OK_RESPONSE
+        return constants.OK_SIMPLE_STRING
 
 
 class ReplConfGetAckCommand(Command):
