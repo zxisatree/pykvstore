@@ -90,7 +90,7 @@ class RespArray(RespDataType):
 
         elements: list[RespDataType] = []
         for _ in range(array_len):
-            print(f"Array.decode: {pos=}, {data[pos:]=}")
+            # print(f"Array.decode: {pos=}, {data[pos:]=}")
             element, pos = codec.parse(data, pos)
             elements.append(element)
         assert pos <= len(data)
@@ -122,9 +122,6 @@ class RespBulkString(RespDataType):
         start = pos + 1
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
-        print(
-            f"{data=}, {start=}, {pos=}, {data[start:]=}, {data[pos:]=}, {data[start:pos]=}"
-        )
         if pos >= len(data):
             print("Invalid RESP bulk string, missing \\r\\n separator")
         bulk_str_len = int(data[start:pos])
@@ -177,9 +174,6 @@ def decode_bulk_string_or_rdb(data: bytes, pos: int) -> tuple[RespDataType, int]
     start = pos + 1
     while pos < len(data) and not codec.is_sep(data, pos):
         pos += 1
-    # print(
-    #     f"{data=}, {start=}, {pos=}, {data[start:]=}, {data[pos:]=}, {data[start:pos]=}"
-    # )
     if pos >= len(data):
         print("Invalid bulk string/RDB file, missing \\r\\n separator")
     bulk_str_len = int(data[start:pos])
