@@ -95,7 +95,9 @@ def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Comman
                 exception_msg = f"Unsupported command (command too short or third argument not *) {resp_data[2]}, {type(resp_data[2])}"
                 print(exception_msg)
                 raise Exception(exception_msg)
+            print(f"parse_cmd got ReplConfGetAckCommand")
             return commands.ReplConfGetAckCommand()
+        print(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand()
     elif cmd_str == "PSYNC":
         return commands.PsyncCommand()
