@@ -105,8 +105,12 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             if not data:
                 break
             print(f"from master: raw {data=}")
-            cmd = codec.parse_cmd(data)
-            cmd.execute(db, self, self.master_conn)
+            cmds = codec.parse_cmd(data)
+            if isinstance(cmds, list):
+                for cmd in cmds:
+                    cmd.execute(db, self, self.master_conn)
+            else:
+                cmds.execute(db, self, self.master_conn)
 
     def propogate(self, raw_cmd: str):
         for slave in self.slaves:

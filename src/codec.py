@@ -5,21 +5,29 @@ import data_types
 
 
 # *2\r\n$4\r\necho\r\n$3\r\nhey\r\n = ["echo", "hey"] encoded using the Redis protocol
-def parse_cmd(cmd_bytes: bytes) -> commands.Command:
+def parse_cmd(cmd_bytes: bytes) -> commands.Command | list[commands.Command]:
     try:
         cmd = cmd_bytes.decode()
     except:
         # either invalid cmd or RDB file
         return commands.RdbFileCommand(cmd_bytes)
-    resp_data, pos = parse(cmd, 0)
-    print(f"Codec.parse {resp_data=}, {pos=}")
-    if not isinstance(resp_data, data_types.RespArray):
-        exception_msg = (
-            f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
-        )
-        print(f"Raising exception: {exception_msg}")
-        raise Exception(exception_msg)
+    final_cmds = []
+    pos = 0
+    while pos < len(cmd):
+        orig = pos
+        resp_data, pos = parse(cmd, pos)
+        print(f"Codec.parse {resp_data=}, {pos=}")
+        if not isinstance(resp_data, data_types.RespArray):
+            exception_msg = (
+                f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
+            )
+            print(f"Raising exception: {exception_msg}")
+            raise Exception(exception_msg)
+        final_cmds.append(parse_resp_cmd(cmd[orig:pos], resp_data))
+    return final_cmds
 
+
+def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Command:
     cmd_resp = resp_data[0]
     if not isinstance(cmd_resp, data_types.RespBulkString):
         exception_msg = f"Unsupported command (first element is not bulk string) {resp_data[0]}, {type(resp_data[0])}"

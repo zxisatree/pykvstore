@@ -9,6 +9,7 @@ from pathlib import Path
 path.append(str(Path(__file__).parent))
 
 import codec
+import commands
 import constants
 import database
 import replicas
@@ -47,20 +48,33 @@ def handle_conn(
             if not data:
                 break
             print(f"raw {data=}")
-            cmd = codec.parse_cmd(data)
-            executed = cmd.execute(db, replica_handler, conn)
-            if isinstance(executed, list):
-                for resp in executed:
-                    print(f"responding {resp}")
-                    if isinstance(resp, bytes):
-                        conn.sendall(resp)
-                    if isinstance(resp, str):
-                        conn.sendall(resp.encode())
+            cmds = codec.parse_cmd(data)
+            if isinstance(cmds, list):
+                for cmd in cmds:
+                    execute_cmd(cmd, db, replica_handler, conn)
             else:
-                print(f"responding {executed}")
-                conn.sendall(executed.encode())
+                execute_cmd(cmds, db, replica_handler, conn)
 
         print(f"Connection closed: {addr=}")
+
+
+def execute_cmd(
+    cmd: commands.Command,
+    db: database.Database,
+    replica_handler: replicas.ReplicaHandler,
+    conn: socket.socket,
+):
+    executed = cmd.execute(db, replica_handler, conn)
+    if isinstance(executed, list):
+        for resp in executed:
+            print(f"responding {resp}")
+            if isinstance(resp, bytes):
+                conn.sendall(resp)
+            if isinstance(resp, str):
+                conn.sendall(resp.encode())
+    else:
+        print(f"responding {executed}")
+        conn.sendall(executed.encode())
 
 
 def setup_argpaser() -> argparse.ArgumentParser:
