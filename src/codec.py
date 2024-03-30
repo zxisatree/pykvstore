@@ -8,69 +8,54 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
     resp_data, pos = parse(cmd, 0)
     print(f"Codec.parse {resp_data=}, {pos=}")
     if not isinstance(resp_data, data_types.RespArray):
-        print(
-            f"Raising exception: Unsupported command (is not array) {resp_data}, {type(resp_data)}"
-        )
-        raise Exception(
+        exception_msg = (
             f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
         )
+        print(f"Raising exception: {exception_msg}")
+        raise Exception(exception_msg)
 
     cmd_resp = resp_data[0]
     if not isinstance(cmd_resp, data_types.RespBulkString):
-        print(
-            f"Raising exception: Unsupported command (first element is not bulk string) {resp_data[0]}, {type(resp_data[0])}"
-        )
-        raise Exception(
-            f"Unsupported command (first element is not bulk string) {resp_data[0]}, {type(resp_data[0])}"
-        )
+        exception_msg = f"Unsupported command (first element is not bulk string) {resp_data[0]}, {type(resp_data[0])}"
+        print(exception_msg)
+        raise Exception(exception_msg)
     cmd_str = cmd_resp.data.upper()
     if cmd_str == "PING":
         return commands.PingCommand()
     elif cmd_str == "ECHO":
         msg = resp_data[1]
         if not isinstance(msg, data_types.RespBulkString):
-            print(
-                f"Raising exception: Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            )
-            raise Exception(
-                f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            )
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
         return commands.EchoCommand(msg)
     elif cmd_str == "SET":
         key = resp_data[1]
         value = resp_data[2]
         if not isinstance(key, data_types.RespBulkString):
-            print(
-                f"Raising exception: Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            )
-            raise Exception(
-                f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            )
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
         if not isinstance(value, data_types.RespBulkString):
-            print(
-                f"Raising exception: Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
-            )
-            raise Exception(
-                f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
-            )
+            exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
         return commands.SetCommand(key, value)
     elif cmd_str == "GET":
         key = resp_data[1]
         if not isinstance(key, data_types.RespBulkString):
-            print(
-                f"Raising exception: Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            )
-            raise Exception(
-                f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            )
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
         return commands.GetCommand(key)
     elif cmd_str == "COMMAND":
         return commands.CommandCommand()
     elif cmd_str == "INFO":
         return commands.InfoCommand()
     else:
-        print(f"Raising exception: Unsupported command {cmd_str}, {type(cmd_str)}")
-        raise Exception(f"Unsupported command {cmd_str}, {type(cmd_str)}")
+        exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
+        print(exception_msg)
+        raise Exception(exception_msg)
 
 
 def parse(cmd: str, pos: int) -> tuple[data_types.RespDataType, int]:
