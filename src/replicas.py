@@ -52,7 +52,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent ping, got {data=}")
         # check if we get PONG
-        if data.decode() != commands.PingCommand().execute(None, None, None):
+        if data != commands.PingCommand().execute(None, None, None):
             print("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
@@ -66,7 +66,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent REPLCONF 1, got {data=}")
         # check if we get OK
-        if data.decode() != constants.OK_SIMPLE_STRING:
+        if data != constants.OK_SIMPLE_STRING:
             print("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
@@ -80,7 +80,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent REPLCONF 2, got {data=}")
         # check if we get OK
-        if data.decode() != constants.OK_SIMPLE_STRING:
+        if data != constants.OK_SIMPLE_STRING:
             print("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
