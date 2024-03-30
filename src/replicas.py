@@ -3,6 +3,7 @@ import socket
 
 import singleton_meta
 import commands
+import constants
 import data_types
 
 
@@ -36,6 +37,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 .encode()
                 .encode()
             )
+            data = self.master_conn.recv(1024)
+            print(f"Replica sent ping, got data {data=}")
+            # check if we get PONG
+            if data.decode() != commands.PingCommand().execute(None, None):
+                print("Failed to connect to master")
             self.master_conn.sendall(
                 data_types.RespArray(
                     [
@@ -47,6 +53,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 .encode()
                 .encode()
             )
+            data = self.master_conn.recv(1024)
+            print(f"Replica sent REPLCONF 1, got data {data=}")
+            # check if we get OK
+            if data.decode() != constants.OK_RESPONSE:
+                print("Failed to connect to master")
             self.master_conn.sendall(
                 data_types.RespArray(
                     [
@@ -58,6 +69,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 .encode()
                 .encode()
             )
+            data = self.master_conn.recv(1024)
+            print(f"Replica sent REPLCONF 2, got data {data=}")
+            # check if we get OK
+            if data.decode() != constants.OK_RESPONSE:
+                print("Failed to connect to master")
 
     def get_info(self) -> str:
         # encode each kv as a RespBulkString
