@@ -130,3 +130,35 @@ class RespBulkString(RespDataType):
         pos += bulk_str_len + 2
         assert pos <= len(data)
         return (RespBulkString(bulk_str), pos)
+
+
+class RdbFile(RespDataType):
+    def __init__(self, data: str):
+        self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __str__(self) -> str:
+        return str(self.data)
+
+    def __repr__(self) -> str:
+        return f"RdbFile({repr(self.data)})"
+
+    def encode(self) -> str:
+        return f"${len(self.data)}\r\n{self.data}"
+
+    @staticmethod
+    def decode(data: str, pos: int) -> tuple["RdbFile", int]:
+        start = pos
+        while pos < len(data) and not codec.is_sep(data, pos):
+            pos += 1
+        if pos >= len(data):
+            print("Invalid RDB file, missing \\r\\n separator")
+        bulk_str_len = int(data[start:pos])
+        pos += 2
+
+        bulk_str = data[pos : pos + bulk_str_len]
+        pos += bulk_str_len
+        assert pos <= len(data)
+        return (RdbFile(bulk_str), pos)

@@ -73,6 +73,9 @@ class ReplConfCommand(Command):
 
 class PsyncCommand(Command):
     def execute(self, db, replica_handler: replicas.ReplicaHandler) -> str:
-        return data_types.RespSimpleString(
-            f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}"
-        ).encode()
+        return (
+            data_types.RespSimpleString(
+                f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}"
+            ).encode()
+            + data_types.RdbFile("").encode()
+        )
