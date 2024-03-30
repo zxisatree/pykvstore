@@ -107,6 +107,9 @@ class ReplConfAckCommand(Command):
         self._raw_cmd = raw_cmd
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+        print(
+            f"incrementing {replica_handler.ack_count=} to {replica_handler.ack_count + 1}"
+        )
         replica_handler.ack_count += 1
         return constants.OK_SIMPLE_STRING.encode()
 
@@ -186,10 +189,11 @@ class WaitCommand(Command):
                 )
 
             end = datetime.now() + self.timeout
+            print(f"Waiting for {self.replica_count} replicas to ack")
             while (
                 replica_handler.ack_count < self.replica_count and datetime.now() < end
             ):
-                pass
+                print(f"{end - datetime.now()=}, {replica_handler.ack_count=}")
             return data_types.RespInteger(replica_handler.ack_count).encode()
         else:
             return constants.OK_SIMPLE_STRING.encode()
