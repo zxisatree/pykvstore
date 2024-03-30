@@ -10,7 +10,6 @@ import replicas
 
 class Command(ABC):
     @property
-    @abstractmethod
     def raw_cmd(self) -> bytes: ...
 
     @abstractmethod
@@ -26,10 +25,6 @@ class PingCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     def execute(self, db, replica_handler, conn) -> bytes:
         return data_types.RespSimpleString(b"PONG").encode()
 
@@ -38,10 +33,6 @@ class EchoCommand(Command):
     def __init__(self, raw_cmd: bytes, bulk_str: data_types.RespBulkString):
         self._raw_cmd = raw_cmd
         self.msg = bulk_str.data
-
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
 
     def execute(self, db, replica_handler, conn) -> bytes:
         return data_types.RespSimpleString(self.msg).encode()
@@ -60,10 +51,6 @@ class SetCommand(Command):
         self.value = value.data
         self.expiry = expiry
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     def execute(
         self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
     ) -> bytes:
@@ -77,10 +64,6 @@ class GetCommand(Command):
         self._raw_cmd = raw_cmd
         self.key = key.data
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
         if self.key.decode() in db:
             return data_types.RespBulkString(db[self.key.decode()].encode()).encode()
@@ -92,10 +75,6 @@ class CommandCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     def execute(self, db, replica_handler, conn) -> bytes:
         return constants.OK_SIMPLE_STRING.encode()
 
@@ -103,10 +82,6 @@ class CommandCommand(Command):
 class InfoCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
-
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         return replica_handler.get_info()
@@ -116,10 +91,6 @@ class ReplConfCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     def execute(self, db, replica_handler, conn) -> bytes:
         return constants.OK_SIMPLE_STRING.encode()
 
@@ -127,10 +98,6 @@ class ReplConfCommand(Command):
 class ReplConfGetAckCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
-
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         replica_handler.propogate(self.raw_cmd)
@@ -149,10 +116,6 @@ class PsyncCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> list[bytes]:
@@ -170,10 +133,6 @@ class FullResyncCommand(Command):
         self.data = data
         self._raw_cmd = data
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     def execute(self, db, replica_handler, conn) -> bytes:
         return b""
 
@@ -183,10 +142,18 @@ class RdbFileCommand(Command):
         self.data = data
         self._raw_cmd = data
 
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
     # slave received a RDB file
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         return b""
+
+
+class WaitCommand(Command):
+    def __init__(self, raw_cmd: bytes, replica_count: int, timeout: int):
+        self._raw_cmd = raw_cmd
+        self.replica_count = replica_count
+        self.timeout = timeout
+
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+        if not replica_handler.slaves:
+            return data_types.RespInteger(0).encode()
+        return data_types.RespInteger(0).encode()

@@ -134,6 +134,35 @@ class RespBulkString(RespDataType):
         return (RespBulkString(bulk_str), pos)
 
 
+class RespInteger(RespDataType):
+    def __init__(self, val: int):
+        self.val = val
+
+    def __len__(self) -> int:
+        return len(str(self.val))
+
+    def __str__(self) -> str:
+        return str(self.val)
+
+    def __repr__(self) -> str:
+        return f"RespInteger({repr(self.val)})"
+
+    def encode(self) -> bytes:
+        return f":{self.val}\r\n".encode()
+
+    @staticmethod
+    def decode(data: bytes, pos: int) -> tuple["RespInteger", int]:
+        start = pos + 1
+        while pos < len(data) and not codec.is_sep(data, pos):
+            pos += 1
+        if pos >= len(data):
+            print("Invalid RESP integer, missing \\r\\n separator")
+        val = int(data[start:pos])
+        pos += 2
+        assert pos <= len(data)
+        return (RespInteger(val), pos)
+
+
 class RdbFile(RespDataType):
     def __init__(self, data: bytes):
         self.data = b64decode(

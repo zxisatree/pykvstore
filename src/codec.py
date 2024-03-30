@@ -105,6 +105,20 @@ def parse_resp_cmd(
             return commands.ReplConfCommand(cmd[start:end])
         print(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand(cmd[start:end])
+    elif cmd_str == b"WAIT":
+        replica_count = resp_data[1]
+        timeout = resp_data[2]
+        if not isinstance(replica_count, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        if not isinstance(timeout, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        return commands.WaitCommand(
+            cmd[start:end], int(replica_count.data), int(timeout.data)
+        )
     elif cmd_str == b"PSYNC":
         return commands.PsyncCommand(cmd[start:end])
     else:
