@@ -24,7 +24,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         if not is_master:
             self.master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.master_conn.settimeout(10)
-            self.master_conn.connect(tuple(replica_of))
+            self.master_conn.connect((replica_of[0], int(replica_of[1])))
             self.master_conn.sendall(
                 data_types.RespArray([data_types.RespBulkString("ping")])
                 .encode()
