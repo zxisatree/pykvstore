@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from base64 import b64decode
 
 import codec
 import constants
@@ -134,7 +135,9 @@ class RespBulkString(RespDataType):
 
 class RdbFile(RespDataType):
     def __init__(self, data: str):
-        self.data = data
+        self.data = b64decode(
+            "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
+        )
 
     def __len__(self) -> int:
         return len(self.data)
@@ -146,7 +149,7 @@ class RdbFile(RespDataType):
         return f"RdbFile({repr(self.data)})"
 
     def encode(self) -> str:
-        return f"${len(self.data)}\r\n{self.data}"
+        return f"${len(self.data)}\r\n{self.data.decode()}"
 
     @staticmethod
     def decode(data: str, pos: int) -> tuple["RdbFile", int]:

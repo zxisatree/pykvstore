@@ -78,7 +78,5 @@ class PsyncCommand(Command):
             data_types.RespSimpleString(
                 f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}"
             ).encode(),
-            data_types.RdbFile(
-                "REDIS0011\xfa\tredis-ver\x057.2.0\xfa\nredis-bits\xc0@\xfa\x05ctime\xc2m\x08\xbce\xfa\x08used-mem\xc2\xb0\xc4\x10\x00\xfa\x08aof-base\xc0\x00\xff\xf0n;\xfe\xc0\xffZ\xa2"
-            ).encode(),
+            data_types.RdbFile("").encode(),
         ]
