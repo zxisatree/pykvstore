@@ -42,17 +42,18 @@ def handle_conn(
 ):
     with conn:
         while True:
-            data = conn.recv(1024)
+            data = conn.recv(64)
             if not data:
                 break
             print(f"raw {data=}")
             cmd = codec.parse_cmd(data)
             executed = cmd.execute(db, replica_handler)
-            print(f"returning {executed=}")
             if isinstance(executed, list):
                 for resp in executed:
+                    print(f"responding {resp}")
                     conn.sendall(resp.encode())
             else:
+                print(f"responding {executed}")
                 conn.sendall(executed.encode())
 
         print(f"Connection closed: {addr=}")
