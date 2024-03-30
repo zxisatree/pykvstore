@@ -52,7 +52,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent ping, got {data=}")
         # check if we get PONG
-        if data != commands.PingCommand().execute(None, None, None):
+        if data != commands.PingCommand(b"").execute(None, None, None):
             print("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
@@ -105,21 +105,20 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             print(f"replica {cmds=}")
             if isinstance(cmds, list):
                 for cmd in cmds:
+                    self.respond_to_master(cmd, db)
                     if handshake_step != 2:
                         handshake_step = self.handle_handshake_psync(
                             handshake_step, cmd
                         )
-                        self.respond_to_master(cmd, db)
                     else:
-                        self.respond_to_master(cmd, db)
-                        self.info["master_repl_offset"] += len(data)
+                        # need to update offset based on cmd in list, not based on full data
+                        self.info["master_repl_offset"] += len(cmd.raw_cmd)
             else:
+                self.respond_to_master(cmds, db)
                 if handshake_step != 2:
                     handshake_step = self.handle_handshake_psync(handshake_step, cmd)
-                    self.respond_to_master(cmds, db)
                 else:
-                    self.respond_to_master(cmds, db)
-                    self.info["master_repl_offset"] += len(data)
+                    self.info["master_repl_offset"] += len(cmd.raw_cmd)
 
     def handle_handshake_psync(
         self, handshake_step: int, cmd: "commands.Command"

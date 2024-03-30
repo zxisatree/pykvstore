@@ -38,14 +38,14 @@ def parse_resp_cmd(
         raise Exception(exception_msg)
     cmd_str = cmd_resp.data.upper()
     if cmd_str == b"PING":
-        return commands.PingCommand()
+        return commands.PingCommand(cmd[start:end])
     elif cmd_str == b"ECHO":
         msg = resp_data[1]
         if not isinstance(msg, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
             print(exception_msg)
             raise Exception(exception_msg)
-        return commands.EchoCommand(msg)
+        return commands.EchoCommand(cmd[start:end], msg)
     elif cmd_str == b"SET":
         key = resp_data[1]
         value = resp_data[2]
@@ -86,12 +86,12 @@ def parse_resp_cmd(
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
             print(exception_msg)
             raise Exception(exception_msg)
-        return commands.GetCommand(key)
+        return commands.GetCommand(cmd[start:end], key)
     elif cmd_str == b"COMMAND":
-        return commands.CommandCommand()
+        return commands.CommandCommand(cmd[start:end])
     elif cmd_str == b"INFO":
         # should check for next word, but only replication is supported
-        return commands.InfoCommand()
+        return commands.InfoCommand(cmd[start:end])
     elif cmd_str == b"REPLCONF":
         if len(resp_data) >= 3:
             cmd_str2 = resp_data[1]
@@ -102,11 +102,11 @@ def parse_resp_cmd(
             if cmd_str2.data.upper() == b"GETACK":
                 print(f"parse_cmd got ReplConfGetAckCommand")
                 return commands.ReplConfGetAckCommand(cmd[start:end])
-            return commands.ReplConfCommand()
+            return commands.ReplConfCommand(cmd[start:end])
         print(f"parse_cmd got ReplConfCommand")
-        return commands.ReplConfCommand()
+        return commands.ReplConfCommand(cmd[start:end])
     elif cmd_str == b"PSYNC":
-        return commands.PsyncCommand()
+        return commands.PsyncCommand(cmd[start:end])
     else:
         return commands.RdbFileCommand(cmd[start:end])
         # exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
