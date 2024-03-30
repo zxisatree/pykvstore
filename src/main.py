@@ -8,22 +8,23 @@ from pathlib import Path
 path.append(str(Path(__file__).parent))
 
 import codec
+import database
 
 
 def main():
-    cache = {}
+    db = database.Database()
     try:
         socket.setdefaulttimeout(30)
         server_socket = socket.create_server(("localhost", 6379))
         while True:
             print("main thread waiting...")
             conn, addr = server_socket.accept()
-            threading.Thread(target=handle_conn, args=(conn, addr, cache)).start()
+            threading.Thread(target=handle_conn, args=(conn, addr, db)).start()
     except Exception as e:
         print(f"Exception: {e}")
 
 
-def handle_conn(conn: socket.socket, addr, cache: dict):
+def handle_conn(conn: socket.socket, addr, db: database.Database):
     with conn:
         while True:
             data = conn.recv(1024)
@@ -31,7 +32,7 @@ def handle_conn(conn: socket.socket, addr, cache: dict):
                 break
             print(f"raw {data=}")
             cmd = codec.parse_cmd(data)
-            conn.sendall(cmd.execute(cache).encode())
+            conn.sendall(cmd.execute(db).encode())
         print(f"Connection closed: {addr=}")
 
 

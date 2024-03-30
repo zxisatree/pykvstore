@@ -1,9 +1,13 @@
 from abc import ABC, abstractmethod
 
 import codec
+import constants
 
 
 class RespDataType(ABC):
+    def __len__(self) -> int:
+        return 0
+
     @abstractmethod
     def encode(self) -> str: ...
 
@@ -97,7 +101,11 @@ class RespBulkString(RespDataType):
         return f"RespBulkString({repr(self.data)})"
 
     def encode(self) -> str:
-        return f"${len(self.data)}\r\n{self.data}\r\n" if self.data else "$-1\r\n"
+        return (
+            f"${len(self.data)}\r\n{self.data}\r\n"
+            if self.data
+            else constants.NULL_BULK_STRING
+        )
 
     @staticmethod
     def decode(data: str, pos: int) -> tuple["RespBulkString", int]:

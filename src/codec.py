@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import commands
 import data_types
 
@@ -40,7 +42,26 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
             exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
             print(exception_msg)
             raise Exception(exception_msg)
-        return commands.SetCommand(key, value)
+        if len(resp_data) == 3:
+            return commands.SetCommand(key, value, None)
+        # parse px command
+        px_cmd = resp_data[3]
+        expiry = resp_data[4]
+        if not isinstance(px_cmd, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (fourth element is not bulk string) {resp_data[3]}, {type(resp_data[3])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        if px_cmd.data.upper() != "PX":
+            exception_msg = f"Unsupported command (fourth element is not 'PX') {resp_data[3]}, {type(resp_data[3])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        if not isinstance(expiry, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (fifth element is not bulk string) {resp_data[4]}, {type(resp_data[4])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        return commands.SetCommand(
+            key, value, datetime.now() + timedelta(milliseconds=int(expiry.data))
+        )
     elif cmd_str == "GET":
         key = resp_data[1]
         if not isinstance(key, data_types.RespBulkString):
