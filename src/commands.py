@@ -14,7 +14,7 @@ class Command(ABC):
         self,
         db: database.Database | None,
         replica_handler: replicas.ReplicaHandler | None,
-    ) -> str: ...
+    ) -> str | list[str]: ...
 
 
 class PingCommand(Command):
@@ -73,12 +73,12 @@ class ReplConfCommand(Command):
 
 
 class PsyncCommand(Command):
-    def execute(self, db, replica_handler: replicas.ReplicaHandler) -> str:
-        return (
+    def execute(self, db, replica_handler: replicas.ReplicaHandler) -> list[str]:
+        return [
             data_types.RespSimpleString(
                 f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}"
-            ).encode()
-            + data_types.RdbFile(
+            ).encode(),
+            data_types.RdbFile(
                 r"REDIS0011\xfa\tredis-ver\x057.2.0\xfa\nredis-bits\xc0@\xfa\x05ctime\xc2m\x08\xbce\xfa\x08used-mem\xc2\xb0\xc4\x10\x00\xfa\x08aof-base\xc0\x00\xff\xf0n;\xfe\xc0\xffZ\xa2"
-            ).encode()
-        )
+            ).encode(),
+        ]

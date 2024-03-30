@@ -49,7 +49,12 @@ def handle_conn(
             cmd = codec.parse_cmd(data)
             executed = cmd.execute(db, replica_handler)
             print(f"returning {executed=}")
-            conn.sendall(executed.encode())
+            if isinstance(executed, list):
+                for resp in executed:
+                    conn.sendall(resp.encode())
+            else:
+                conn.sendall(executed.encode())
+
         print(f"Connection closed: {addr=}")
 
 
