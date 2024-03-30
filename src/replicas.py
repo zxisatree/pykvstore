@@ -31,7 +31,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             "role": "master" if is_master else "slave",
             "connected_slaves": len(self.slaves),
             "master_replid": self.id if is_master else "?",
-            "master_repl_offset": 0 if is_master else -1,
+            "master_repl_offset": 0,
             # "second_repl_offset": -1,
             # "repl_backlog_active": 0,
             # "repl_backlog_size": 1048576,
@@ -87,9 +87,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 [
                     data_types.RespBulkString(b"PSYNC"),
                     data_types.RespBulkString(str(self.info["master_replid"]).encode()),
-                    data_types.RespBulkString(
-                        str(self.info["master_repl_offset"]).encode()
-                    ),
+                    data_types.RespBulkString(str(-1).encode()),
                 ]
             ).encode()
         )
@@ -109,6 +107,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                     self.respond_to_master(cmd, db)
             else:
                 self.respond_to_master(cmds, db)
+            self.info["master_repl_offset"] += len(data)
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
