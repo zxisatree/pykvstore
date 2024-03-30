@@ -2,13 +2,18 @@ import uuid
 import socket
 
 import singleton_meta
+import commands
 import data_types
 
 
 class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
-    def __init__(self, is_master: bool, replica_of: list):
+    def __init__(self, is_master: bool, ip: str, port: int, replica_of: list):
         self.is_master = is_master
         self.id = str(uuid.uuid4())
+        self.master_ip = replica_of[0]
+        self.master_port = replica_of[1]
+        self.ip = ip
+        self.port = port
         self.info = {
             "role": "master" if is_master else "slave",
             "connected_slaves": 0,
@@ -26,7 +31,27 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             self.master_conn.settimeout(10)
             self.master_conn.connect((replica_of[0], int(replica_of[1])))
             self.master_conn.sendall(
-                data_types.RespArray([data_types.RespBulkString("ping")])
+                commands.PingCommand().execute(None, None).encode()
+            )
+            self.master_conn.sendall(
+                data_types.RespArray(
+                    [
+                        data_types.RespBulkString("REPLCONF"),
+                        data_types.RespBulkString("listening-port"),
+                        data_types.RespBulkString(str(port)),
+                    ]
+                )
+                .encode()
+                .encode()
+            )
+            self.master_conn.sendall(
+                data_types.RespArray(
+                    [
+                        data_types.RespBulkString("REPLCONF"),
+                        data_types.RespBulkString("capa"),
+                        data_types.RespBulkString("psync2"),
+                    ]
+                )
                 .encode()
                 .encode()
             )

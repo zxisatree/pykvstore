@@ -18,7 +18,7 @@ def main():
     args = argparser.parse_args()
     db = database.Database()
     replica_handler = replicas.ReplicaHandler(
-        False if args.replicaof else True, args.replicaof
+        False if args.replicaof else True, "localhost", args.port, args.replicaof
     )
 
     try:
