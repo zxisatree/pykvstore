@@ -105,9 +105,10 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             if isinstance(cmds, list):
                 for cmd in cmds:
                     self.respond_to_master(cmd, db)
+                    self.info["master_repl_offset"] += len(data)
             else:
                 self.respond_to_master(cmds, db)
-            self.info["master_repl_offset"] += len(data)
+                self.info["master_repl_offset"] += len(data)
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
