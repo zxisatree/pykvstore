@@ -158,6 +158,4 @@ class WaitCommand(Command):
         self.timeout = timeout
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
-        if not replica_handler.slaves:
-            return data_types.RespInteger(0).encode()
-        return data_types.RespInteger(0).encode()
+        return data_types.RespInteger(len(replica_handler.slaves)).encode()
