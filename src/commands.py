@@ -108,6 +108,14 @@ class PsyncCommand(Command):
         ]
 
 
+class FullResyncCommand(Command):
+    def __init__(self, data: str) -> None:
+        self.data = data
+
+    def execute(self, db, replica_handler, conn) -> str:
+        return ""
+
+
 class RdbFileCommand(Command):
     def __init__(self, data: bytes) -> None:
         self.data = data

@@ -11,19 +11,23 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command | list[commands.Command]:
     except:
         # either invalid cmd or RDB file
         return commands.RdbFileCommand(cmd_bytes)
-    final_cmds = []
+    final_cmds: list[commands.Command] = []
     pos = 0
     while pos < len(cmd):
         orig = pos
         resp_data, pos = parse(cmd, pos)
         print(f"Codec.parse {resp_data=}, {pos=}")
-        if not isinstance(resp_data, data_types.RespArray):
+        if isinstance(resp_data, data_types.RespArray):
+            final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
+        elif isinstance(resp_data, data_types.RespSimpleString):
+            # is +FULLRESYNC
+            final_cmds.append(commands.FullResyncCommand(resp_data.data))
+        else:
             exception_msg = (
                 f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
             )
             print(f"Raising exception: {exception_msg}")
             raise Exception(exception_msg)
-        final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
     return final_cmds
 
 
@@ -119,6 +123,8 @@ def parse(cmd: str, pos: int) -> tuple[data_types.RespDataType, int]:
         return data_types.RespArray.decode(cmd, pos + 1)
     elif data_type == "$":
         return data_types.RespBulkString.decode(cmd, pos + 1)
+    elif data_type == "+":
+        return data_types.RespSimpleString.decode(cmd, pos + 1)
     else:
         print(f"Raising exception: Unsupported data type {data_type}")
         raise Exception(f"Unsupported data type {data_type}")
