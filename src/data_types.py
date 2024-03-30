@@ -73,7 +73,7 @@ class RespArray(RespDataType):
         return f"RespArray({repr(self.elements)})"
 
     def encode(self) -> str:
-        return f"*{len(self.elements)}\r\n" + "\r\n".join(
+        return f"*{len(self.elements)}\r\n" + "".join(
             map(lambda x: x.encode(), self.elements)
         )
 
