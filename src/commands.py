@@ -9,8 +9,12 @@ import replicas
 
 
 class Command(ABC):
+    def __init__(self):
+        self._raw_cmd = b""
+
     @property
-    def raw_cmd(self) -> bytes: ...
+    def raw_cmd(self) -> bytes:
+        return self._raw_cmd
 
     @abstractmethod
     def execute(
