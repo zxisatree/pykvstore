@@ -110,27 +110,13 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 for cmd in cmds:
                     executed = cmd.execute(db, self, self.master_conn)
                     if isinstance(cmd, commands.ReplConfGetAckCommand):
-                        if isinstance(executed, list):
-                            for resp in executed:
-                                print(f"responding {resp}")
-                                if isinstance(resp, bytes):
-                                    self.master_conn.sendall(resp)
-                                if isinstance(resp, str):
-                                    self.master_conn.sendall(resp.encode())
-                        else:
+                        if isinstance(executed, str):  # impossible to get list here
                             print(f"responding {executed}")
                             self.master_conn.sendall(executed.encode())
             else:
-                cmds.execute(db, self, self.master_conn)
-                if isinstance(cmds, commands.ReplConfGetAckCommand):
-                    if isinstance(executed, list):
-                        for resp in executed:
-                            print(f"responding {resp}")
-                            if isinstance(resp, bytes):
-                                self.master_conn.sendall(resp)
-                            if isinstance(resp, str):
-                                self.master_conn.sendall(resp.encode())
-                    else:
+                executed = cmds.execute(db, self, self.master_conn)
+                if isinstance(cmd, commands.ReplConfGetAckCommand):
+                    if isinstance(executed, str):  # impossible to get list here
                         print(f"responding {executed}")
                         self.master_conn.sendall(executed.encode())
 
