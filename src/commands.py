@@ -184,7 +184,9 @@ class WaitCommand(Command):
                 ).start()
 
             start = datetime.now()
-            print(f"{datetime.now() - start=}, {self.timeout=}")
+            print(
+                f"{datetime.now() - start=}, {self.timeout=}, {self.replica_count=}, {len(replica_handler.slaves)=}"
+            )
             while datetime.now() - start < self.timeout:
                 print(f"{datetime.now() - start=}")
                 if ack_count >= self.replica_count:
