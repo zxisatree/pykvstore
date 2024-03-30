@@ -122,7 +122,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                             self.master_conn.sendall(executed.encode())
             else:
                 cmds.execute(db, self, self.master_conn)
-                if isinstance(cmd, commands.ReplConfGetAckCommand):
+                if isinstance(cmds, commands.ReplConfGetAckCommand):
                     if isinstance(executed, list):
                         for resp in executed:
                             print(f"responding {resp}")
