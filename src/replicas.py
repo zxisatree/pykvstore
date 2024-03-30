@@ -10,10 +10,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
     def __init__(self, is_master: bool, ip: str, port: int, replica_of: list):
         self.is_master = is_master
         self.id = str(uuid.uuid4())
-        self.master_ip = replica_of[0]
-        self.master_port = replica_of[1]
         self.ip = ip
         self.port = port
+        if replica_of:
+            self.master_ip = replica_of[0]
+            self.master_port = replica_of[1]
         self.info = {
             "role": "master" if is_master else "slave",
             "connected_slaves": 0,
