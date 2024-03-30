@@ -5,7 +5,7 @@ import data_types
 class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
     is_master: bool
 
-    def __init__(self, is_master: bool):
+    def __init__(self, is_master: bool, replica_of: list):
         self.is_master = is_master
         self.info = {
             "role": "master" if is_master else "slave",

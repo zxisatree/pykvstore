@@ -17,7 +17,9 @@ def main():
     argparser = setup_argpaser()
     args = argparser.parse_args()
     db = database.Database()
-    replica_handler = replicas.ReplicaHandler(True)
+    replica_handler = replicas.ReplicaHandler(
+        False if args.replicaof else True, args.replicaof
+    )
 
     try:
         socket.setdefaulttimeout(30)
@@ -57,6 +59,13 @@ def setup_argpaser() -> argparse.ArgumentParser:
     )
     argparser.add_argument(
         "--port", type=int, default=6379, help="Port to listen on (default: 6379)"
+    )
+    argparser.add_argument(
+        "--replicaof",
+        type=str,
+        nargs=2,
+        default=None,
+        help="Master IP and port to replicate from (default: None)",
     )
     return argparser
 
