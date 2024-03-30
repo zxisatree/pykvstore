@@ -110,17 +110,16 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             cmds = codec.parse_cmd(data)
             if isinstance(cmds, list):
                 for cmd in cmds:
-                    executed = cmd.execute(db, self, self.master_conn)
-                    if isinstance(cmd, commands.ReplConfGetAckCommand):
-                        if isinstance(executed, str):  # impossible to get list here
-                            print(f"responding {executed}")
-                            self.master_conn.sendall(executed.encode())
+                    self.respond_to_master(cmd, db)
             else:
-                executed = cmds.execute(db, self, self.master_conn)
-                if isinstance(cmd, commands.ReplConfGetAckCommand):
-                    if isinstance(executed, str):  # impossible to get list here
-                        print(f"responding {executed}")
-                        self.master_conn.sendall(executed.encode())
+                self.respond_to_master(cmds, db)
+
+    def respond_to_master(self, cmd, db):
+        executed = cmd.execute(db, self, self.master_conn)
+        if isinstance(cmd, commands.ReplConfGetAckCommand):
+            if isinstance(executed, str):  # impossible to get list here
+                print(f"responding {executed}")
+                self.master_conn.sendall(executed.encode())
 
     def propogate(self, raw_cmd: str):
         for slave in self.slaves:
