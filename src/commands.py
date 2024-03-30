@@ -15,26 +15,26 @@ class Command(ABC):
         db: database.Database | None,
         replica_handler: replicas.ReplicaHandler | None,
         conn: socket.socket | None,
-    ) -> str | list[str | bytes]: ...
+    ) -> bytes | list[bytes]: ...
 
 
 class PingCommand(Command):
-    def execute(self, db, replica_handler, conn) -> str:
-        return data_types.RespSimpleString("PONG").encode()
+    def execute(self, db, replica_handler, conn) -> bytes:
+        return data_types.RespSimpleString(b"PONG").encode()
 
 
 class EchoCommand(Command):
     def __init__(self, bulk_str: data_types.RespBulkString):
         self.msg = bulk_str.data
 
-    def execute(self, db, replica_handler, conn) -> str:
+    def execute(self, db, replica_handler, conn) -> bytes:
         return data_types.RespSimpleString(self.msg).encode()
 
 
 class SetCommand(Command):
     def __init__(
         self,
-        raw_cmd: str,
+        raw_cmd: bytes,
         key: data_types.RespBulkString,
         value: data_types.RespBulkString,
         expiry: datetime | None,
@@ -46,51 +46,49 @@ class SetCommand(Command):
 
     def execute(
         self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
-    ) -> str:
+    ) -> bytes:
         replica_handler.propogate(self.raw_cmd)
-        db[self.key] = (self.value, self.expiry)
-        return constants.OK_SIMPLE_STRING
+        db[self.key.decode()] = (self.value.decode(), self.expiry)
+        return constants.OK_SIMPLE_STRING.encode()
 
 
 class GetCommand(Command):
     def __init__(self, key: data_types.RespBulkString):
         self.key = key.data
 
-    def execute(self, db: database.Database, replica_handler, conn) -> str:
-        if self.key in db:
-            return data_types.RespBulkString(db[self.key]).encode()
-        return constants.NULL_BULK_STRING
+    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+        if self.key.decode() in db:
+            return data_types.RespBulkString(db[self.key.decode()].encode()).encode()
+        return constants.NULL_BULK_STRING.encode()
 
 
 class CommandCommand(Command):
     # TODO
-    def execute(self, db, replica_handler, conn) -> str:
-        return constants.OK_SIMPLE_STRING
+    def execute(self, db, replica_handler, conn) -> bytes:
+        return constants.OK_SIMPLE_STRING.encode()
 
 
 class InfoCommand(Command):
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> str:
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         return replica_handler.get_info()
 
 
 class ReplConfCommand(Command):
-    def execute(self, db, replica_handler, conn) -> str:
-        return constants.OK_SIMPLE_STRING
+    def execute(self, db, replica_handler, conn) -> bytes:
+        return constants.OK_SIMPLE_STRING.encode()
 
 
 class ReplConfGetAckCommand(Command):
-    def __init__(self, raw_cmd: str):
+    def __init__(self, raw_cmd: bytes):
         self.raw_cmd = raw_cmd
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> str:
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         replica_handler.propogate(self.raw_cmd)
         return data_types.RespArray(
             [
-                data_types.RespBulkString("REPLCONF"),
-                data_types.RespBulkString("ACK"),
-                data_types.RespBulkString(
-                    str(replica_handler.info["master_repl_offset"])
-                ),
+                data_types.RespBulkString(b"REPLCONF"),
+                data_types.RespBulkString(b"ACK"),
+                data_types.RespBulkString(replica_handler.info["master_repl_offset"]),
             ]
         ).encode()
 
@@ -98,22 +96,22 @@ class ReplConfGetAckCommand(Command):
 class PsyncCommand(Command):
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
-    ) -> list[str | bytes]:
+    ) -> list[bytes]:
         replica_handler.slaves.append(conn)
         return [
             data_types.RespSimpleString(
-                f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}"
+                f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}".encode()
             ).encode(),
-            data_types.RdbFile("").encode(),
+            data_types.RdbFile(b"").encode(),
         ]
 
 
 class FullResyncCommand(Command):
-    def __init__(self, data: str) -> None:
+    def __init__(self, data: bytes) -> None:
         self.data = data
 
-    def execute(self, db, replica_handler, conn) -> str:
-        return ""
+    def execute(self, db, replica_handler, conn) -> bytes:
+        return b""
 
 
 class RdbFileCommand(Command):
@@ -121,5 +119,5 @@ class RdbFileCommand(Command):
         self.data = data
 
     # slave received a RDB file
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> str:
-        return ""
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+        return b""

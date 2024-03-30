@@ -74,7 +74,7 @@ def execute_cmd(
                 conn.sendall(resp.encode())
     else:
         print(f"responding {executed}")
-        conn.sendall(executed.encode())
+        conn.sendall(executed)
 
 
 def setup_argpaser() -> argparse.ArgumentParser:

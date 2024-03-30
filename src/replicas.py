@@ -47,7 +47,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.master_conn.settimeout(constants.CONN_TIMEOUT)
         self.master_conn.connect((self.master_ip, int(self.master_port)))
         self.master_conn.sendall(
-            data_types.RespArray([data_types.RespBulkString("ping")]).encode().encode()
+            data_types.RespArray([data_types.RespBulkString(b"ping")]).encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent ping, got {data=}")
@@ -57,13 +57,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.master_conn.sendall(
             data_types.RespArray(
                 [
-                    data_types.RespBulkString("REPLCONF"),
-                    data_types.RespBulkString("listening-port"),
-                    data_types.RespBulkString(str(self.port)),
+                    data_types.RespBulkString(b"REPLCONF"),
+                    data_types.RespBulkString(b"listening-port"),
+                    data_types.RespBulkString(str(self.port).encode()),
                 ]
-            )
-            .encode()
-            .encode()
+            ).encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent REPLCONF 1, got {data=}")
@@ -73,13 +71,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.master_conn.sendall(
             data_types.RespArray(
                 [
-                    data_types.RespBulkString("REPLCONF"),
-                    data_types.RespBulkString("capa"),
-                    data_types.RespBulkString("psync2"),
+                    data_types.RespBulkString(b"REPLCONF"),
+                    data_types.RespBulkString(b"capa"),
+                    data_types.RespBulkString(b"psync2"),
                 ]
-            )
-            .encode()
-            .encode()
+            ).encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         print(f"Replica sent REPLCONF 2, got {data=}")
@@ -89,13 +85,13 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.master_conn.sendall(
             data_types.RespArray(
                 [
-                    data_types.RespBulkString("PSYNC"),
-                    data_types.RespBulkString(str(self.info["master_replid"])),
-                    data_types.RespBulkString(str(self.info["master_repl_offset"])),
+                    data_types.RespBulkString(b"PSYNC"),
+                    data_types.RespBulkString(str(self.info["master_replid"]).encode()),
+                    data_types.RespBulkString(
+                        str(self.info["master_repl_offset"]).encode()
+                    ),
                 ]
-            )
-            .encode()
-            .encode()
+            ).encode()
         )
         print(f"Replica sent PSYNC")
 
@@ -120,18 +116,18 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 print(f"responding {executed}")
                 self.master_conn.sendall(executed.encode())
 
-    def propogate(self, raw_cmd: str):
+    def propogate(self, raw_cmd: bytes):
         for slave in self.slaves:
             print(f"Propogating to {slave=}")
-            slave.sendall(raw_cmd.encode())
+            slave.sendall(raw_cmd)
 
-    def get_info(self) -> str:
+    def get_info(self) -> bytes:
         # encode each kv as a RespBulkString
         return data_types.RespBulkString(
-            "".join(
+            b"".join(
                 map(
                     lambda item: data_types.RespBulkString(
-                        f"{item[0]}:{item[1]}"
+                        f"{item[0]}:{item[1]}".encode()
                     ).encode(),
                     self.info.items(),
                 )

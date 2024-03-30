@@ -10,16 +10,16 @@ class RespDataType(ABC):
     def __len__(self) -> int: ...
 
     @abstractmethod
-    def encode(self) -> str: ...
+    def encode(self) -> bytes: ...
 
     @staticmethod
     @abstractmethod
     # Returns the parsed object and the new pos
-    def decode(data: str, pos: int) -> tuple["RespDataType", int]: ...
+    def decode(data: bytes, pos: int) -> tuple["RespDataType", int]: ...
 
 
 class RespSimpleString(RespDataType):
-    def __init__(self, data: str):
+    def __init__(self, data: bytes):
         self.data = data
 
     def __len__(self) -> int:
@@ -31,11 +31,11 @@ class RespSimpleString(RespDataType):
     def __repr__(self) -> str:
         return f"RespSimpleString({repr(self.data)})"
 
-    def encode(self) -> str:
-        return f"+{self.data}\r\n"
+    def encode(self) -> bytes:
+        return b"+" + self.data + b"\r\n"
 
     @staticmethod
-    def decode(data: str, pos: int) -> tuple["RespSimpleString", int]:
+    def decode(data: bytes, pos: int) -> tuple["RespSimpleString", int]:
         start = pos
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
@@ -73,16 +73,15 @@ class RespArray(RespDataType):
     def __repr__(self) -> str:
         return f"RespArray({repr(self.elements)})"
 
-    def encode(self) -> str:
-        return f"*{len(self.elements)}\r\n" + "".join(
+    def encode(self) -> bytes:
+        return f"*{len(self.elements)}\r\n".encode() + b"".join(
             map(lambda x: x.encode(), self.elements)
         )
 
     @staticmethod
-    def decode(data: str, pos: int) -> tuple["RespArray", int]:
-        start = pos
+    def decode(data: bytes, pos: int) -> tuple["RespArray", int]:
+        start = pos + 1
         while pos < len(data) and not codec.is_sep(data, pos):
-            print(f"{pos=}, {data[pos]=}")
             pos += 1
         if pos >= len(data):
             print("Invalid RESP array, missing \\r\\n separator")
@@ -91,6 +90,7 @@ class RespArray(RespDataType):
 
         elements: list[RespDataType] = []
         for _ in range(array_len):
+            print(f"Array.decode: {pos=}, {data[pos:]=}")
             element, pos = codec.parse(data, pos)
             elements.append(element)
         assert pos <= len(data)
@@ -98,7 +98,7 @@ class RespArray(RespDataType):
 
 
 class RespBulkString(RespDataType):
-    def __init__(self, data: str):
+    def __init__(self, data: bytes):
         self.data = data
 
     def __len__(self) -> int:
@@ -110,18 +110,21 @@ class RespBulkString(RespDataType):
     def __repr__(self) -> str:
         return f"RespBulkString({repr(self.data)})"
 
-    def encode(self) -> str:
+    def encode(self) -> bytes:
         return (
-            f"${len(self.data)}\r\n{self.data}\r\n"
+            f"${len(self.data)}\r\n".encode() + self.data + b"\r\n"
             if self.data
-            else constants.NULL_BULK_STRING
+            else constants.NULL_BULK_STRING.encode()
         )
 
     @staticmethod
-    def decode(data: str, pos: int) -> tuple["RespBulkString", int]:
-        start = pos
+    def decode(data: bytes, pos: int) -> tuple["RespBulkString", int]:
+        start = pos + 1
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
+        print(
+            f"{data=}, {start=}, {pos=}, {data[start:]=}, {data[pos:]=}, {data[start:pos]=}"
+        )
         if pos >= len(data):
             print("Invalid RESP bulk string, missing \\r\\n separator")
         bulk_str_len = int(data[start:pos])
@@ -129,12 +132,13 @@ class RespBulkString(RespDataType):
 
         bulk_str = data[pos : pos + bulk_str_len]
         pos += bulk_str_len + 2
+        print(f"{data=}, {pos=}, {len(data)=}")
         assert pos <= len(data)
         return (RespBulkString(bulk_str), pos)
 
 
-class RdbFile:
-    def __init__(self, data: str):
+class RdbFile(RespDataType):
+    def __init__(self, data: bytes):
         self.data = b64decode(
             "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
         )
@@ -152,8 +156,8 @@ class RdbFile:
         return f"${len(self.data)}\r\n".encode() + self.data
 
     @staticmethod
-    def decode(data: str, pos: int) -> tuple["RdbFile", int]:
-        start = pos
+    def decode(data: bytes, pos: int) -> tuple["RdbFile", int]:
+        start = pos + 1
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
         if pos >= len(data):
@@ -165,3 +169,22 @@ class RdbFile:
         pos += bulk_str_len
         assert pos <= len(data)
         return (RdbFile(bulk_str), pos)
+
+
+def decode_bulk_string_or_rdb(data: bytes, pos: int) -> tuple[RespDataType, int]:
+    # check if the length ends with a sep
+    orig = pos
+    start = pos + 1
+    while pos < len(data) and not codec.is_sep(data, pos):
+        pos += 1
+    # print(
+    #     f"{data=}, {start=}, {pos=}, {data[start:]=}, {data[pos:]=}, {data[start:pos]=}"
+    # )
+    if pos >= len(data):
+        print("Invalid bulk string/RDB file, missing \\r\\n separator")
+    bulk_str_len = int(data[start:pos])
+    pos += 2 + bulk_str_len
+    if codec.is_sep(data, pos):
+        return RespBulkString.decode(data, orig)
+    else:
+        return RdbFile.decode(data, orig)

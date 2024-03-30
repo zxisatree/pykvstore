@@ -5,12 +5,7 @@ import data_types
 
 
 # *2\r\n$4\r\necho\r\n$3\r\nhey\r\n = ["echo", "hey"] encoded using the Redis protocol
-def parse_cmd(cmd_bytes: bytes) -> commands.Command | list[commands.Command]:
-    try:
-        cmd = cmd_bytes.decode()
-    except:
-        # either invalid cmd or RDB file
-        return commands.RdbFileCommand(cmd_bytes)
+def parse_cmd(cmd: bytes) -> commands.Command | list[commands.Command]:
     final_cmds: list[commands.Command] = []
     pos = 0
     while pos < len(cmd):
@@ -22,6 +17,8 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command | list[commands.Command]:
         elif isinstance(resp_data, data_types.RespSimpleString):
             # is +FULLRESYNC
             final_cmds.append(commands.FullResyncCommand(resp_data.data))
+        elif isinstance(resp_data, data_types.RdbFile):
+            final_cmds.append(commands.RdbFileCommand(resp_data.data))
         else:
             exception_msg = (
                 f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
@@ -32,7 +29,7 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command | list[commands.Command]:
 
 
 def parse_resp_cmd(
-    resp_data: data_types.RespArray, cmd: str, start: int, end: int
+    resp_data: data_types.RespArray, cmd: bytes, start: int, end: int
 ) -> commands.Command:
     cmd_resp = resp_data[0]
     if not isinstance(cmd_resp, data_types.RespBulkString):
@@ -40,16 +37,16 @@ def parse_resp_cmd(
         print(exception_msg)
         raise Exception(exception_msg)
     cmd_str = cmd_resp.data.upper()
-    if cmd_str == "PING":
+    if cmd_str == b"PING":
         return commands.PingCommand()
-    elif cmd_str == "ECHO":
+    elif cmd_str == b"ECHO":
         msg = resp_data[1]
         if not isinstance(msg, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
             print(exception_msg)
             raise Exception(exception_msg)
         return commands.EchoCommand(msg)
-    elif cmd_str == "SET":
+    elif cmd_str == b"SET":
         key = resp_data[1]
         value = resp_data[2]
         if not isinstance(key, data_types.RespBulkString):
@@ -83,19 +80,19 @@ def parse_resp_cmd(
             value,
             datetime.now() + timedelta(milliseconds=int(expiry.data)),
         )
-    elif cmd_str == "GET":
+    elif cmd_str == b"GET":
         key = resp_data[1]
         if not isinstance(key, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
             print(exception_msg)
             raise Exception(exception_msg)
         return commands.GetCommand(key)
-    elif cmd_str == "COMMAND":
+    elif cmd_str == b"COMMAND":
         return commands.CommandCommand()
-    elif cmd_str == "INFO":
+    elif cmd_str == b"INFO":
         # should check for next word, but only replication is supported
         return commands.InfoCommand()
-    elif cmd_str == "REPLCONF":
+    elif cmd_str == b"REPLCONF":
         if len(resp_data) >= 3:
             cmd_str2 = resp_data[1]
             if not isinstance(cmd_str2, data_types.RespBulkString):
@@ -108,31 +105,33 @@ def parse_resp_cmd(
             return commands.ReplConfCommand()
         print(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand()
-    elif cmd_str == "PSYNC":
+    elif cmd_str == b"PSYNC":
         return commands.PsyncCommand()
     else:
-        exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
-        print(exception_msg)
-        raise Exception(exception_msg)
+        return commands.RdbFileCommand(cmd[start:end])
+        # exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
+        # print(exception_msg)
+        # raise Exception(exception_msg)
 
 
-def parse(cmd: str, pos: int) -> tuple[data_types.RespDataType, int]:
+def parse(cmd: bytes, pos: int) -> tuple[data_types.RespDataType, int]:
     # Dispatches parsing to the relevant methods
-    data_type = cmd[pos]
-    if data_type == "*":
-        return data_types.RespArray.decode(cmd, pos + 1)
-    elif data_type == "$":
-        return data_types.RespBulkString.decode(cmd, pos + 1)
-    elif data_type == "+":
-        return data_types.RespSimpleString.decode(cmd, pos + 1)
+    data_type = cmd[pos : pos + 1]
+    if data_type == b"*":
+        return data_types.RespArray.decode(cmd, pos)
+    elif data_type == b"$":
+        return data_types.decode_bulk_string_or_rdb(cmd, pos)
+    elif data_type == b"+":
+        return data_types.RespSimpleString.decode(cmd, pos)
     else:
         print(f"Raising exception: Unsupported data type {data_type}")
         raise Exception(f"Unsupported data type {data_type}")
 
 
-def is_sep(data: str, pos: int) -> bool:
+def is_sep(data: bytes, pos: int) -> bool:
+    # using slices to index data to get bytes instead of ints
     return (
         pos + 1 < len(data)
-        and data[pos : pos + 1] == "\r"
-        and data[pos + 1 : pos + 2] == "\n"
+        and data[pos : pos + 1] == b"\r"
+        and data[pos + 1 : pos + 2] == b"\n"
     )
