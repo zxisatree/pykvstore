@@ -43,7 +43,7 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
             print(exception_msg)
             raise Exception(exception_msg)
         if len(resp_data) <= 3:
-            return commands.SetCommand(key, value, None)
+            return commands.SetCommand(cmd_str, key, value, None)
         # parse px command
         px_cmd = resp_data[3]
         expiry = resp_data[4]
@@ -60,7 +60,10 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
             print(exception_msg)
             raise Exception(exception_msg)
         return commands.SetCommand(
-            key, value, datetime.now() + timedelta(milliseconds=int(expiry.data))
+            cmd_str,
+            key,
+            value,
+            datetime.now() + timedelta(milliseconds=int(expiry.data)),
         )
     elif cmd_str == "GET":
         key = resp_data[1]

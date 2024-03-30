@@ -1,2 +1,4 @@
+BUFFER_SIZE = 64
+
 OK_RESPONSE = "+OK\r\n"
 NULL_BULK_STRING = "$-1\r\n"

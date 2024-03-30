@@ -14,7 +14,7 @@ class Command(ABC):
         self,
         db: database.Database | None,
         replica_handler: replicas.ReplicaHandler | None,
-    ) -> str | list[str] | list[bytes]: ...
+    ) -> str | list[str | bytes]: ...
 
 
 class PingCommand(Command):
@@ -33,15 +33,20 @@ class EchoCommand(Command):
 class SetCommand(Command):
     def __init__(
         self,
+        raw_cmd: str,
         key: data_types.RespBulkString,
         value: data_types.RespBulkString,
         expiry: datetime | None,
     ):
+        self.raw_cmd = raw_cmd
         self.key = key.data
         self.value = value.data
         self.expiry = expiry
 
-    def execute(self, db: database.Database, replica_handler) -> str:
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str:
+        replica_handler.propogate(self.raw_cmd)
         db[self.key] = (self.value, self.expiry)
         return constants.OK_RESPONSE
 
@@ -73,12 +78,12 @@ class ReplConfCommand(Command):
 
 
 class PsyncCommand(Command):
-    def execute(self, db, replica_handler: replicas.ReplicaHandler) -> list[bytes]:
+    def execute(
+        self, db, replica_handler: replicas.ReplicaHandler
+    ) -> list[str | bytes]:
         return [
             data_types.RespSimpleString(
                 f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}"
-            )
-            .encode()
-            .encode(),
+            ).encode(),
             data_types.RdbFile("").encode(),
         ]

@@ -9,6 +9,7 @@ from pathlib import Path
 path.append(str(Path(__file__).parent))
 
 import codec
+import constants
 import database
 import replicas
 
@@ -18,7 +19,7 @@ def main():
     args = argparser.parse_args()
     db = database.Database()
     replica_handler = replicas.ReplicaHandler(
-        False if args.replicaof else True, "localhost", args.port, args.replicaof
+        False if args.replicaof else True, "localhost", args.port, args.replicaof, db
     )
 
     try:
@@ -42,7 +43,7 @@ def handle_conn(
 ):
     with conn:
         while True:
-            data = conn.recv(64)
+            data = conn.recv(constants.BUFFER_SIZE)
             if not data:
                 break
             print(f"raw {data=}")

@@ -1,14 +1,24 @@
+import threading
 import uuid
 import socket
 
 import singleton_meta
+import codec
 import commands
 import constants
+import database
 import data_types
 
 
 class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
-    def __init__(self, is_master: bool, ip: str, port: int, replica_of: list):
+    def __init__(
+        self,
+        is_master: bool,
+        ip: str,
+        port: int,
+        replica_of: list,
+        db: database.Database,
+    ):
         self.is_master = is_master
         self.id = str(uuid.uuid4())
         self.ip = ip
@@ -16,6 +26,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         if replica_of:
             self.master_ip = replica_of[0]
             self.master_port = replica_of[1]
+        self.slaves = []
         self.info = {
             "role": "master" if is_master else "slave",
             "connected_slaves": 0,
@@ -29,64 +40,77 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         }
         # attempt to connect to master
         if not is_master:
-            self.master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.master_conn.settimeout(10)
-            self.master_conn.connect((replica_of[0], int(replica_of[1])))
-            self.master_conn.sendall(
-                data_types.RespArray([data_types.RespBulkString("ping")])
-                .encode()
-                .encode()
+            threading.Thread(target=self.connect_to_master, args=(db,)).start()
+
+    def connect_to_master(self, db: database.Database):
+        self.master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.master_conn.settimeout(10)
+        self.master_conn.connect((self.master_ip, int(self.master_port)))
+        self.master_conn.sendall(
+            data_types.RespArray([data_types.RespBulkString("ping")]).encode().encode()
+        )
+        data = self.master_conn.recv(constants.BUFFER_SIZE)
+        print(f"Replica sent ping, got {data=}")
+        # check if we get PONG
+        if data.decode() != commands.PingCommand().execute(None, None):
+            print("Failed to connect to master")
+        self.master_conn.sendall(
+            data_types.RespArray(
+                [
+                    data_types.RespBulkString("REPLCONF"),
+                    data_types.RespBulkString("listening-port"),
+                    data_types.RespBulkString(str(self.port)),
+                ]
             )
-            data = self.master_conn.recv(1024)
-            print(f"Replica sent ping, got {data=}")
-            # check if we get PONG
-            if data.decode() != commands.PingCommand().execute(None, None):
-                print("Failed to connect to master")
-            self.master_conn.sendall(
-                data_types.RespArray(
-                    [
-                        data_types.RespBulkString("REPLCONF"),
-                        data_types.RespBulkString("listening-port"),
-                        data_types.RespBulkString(str(port)),
-                    ]
-                )
-                .encode()
-                .encode()
+            .encode()
+            .encode()
+        )
+        data = self.master_conn.recv(constants.BUFFER_SIZE)
+        print(f"Replica sent REPLCONF 1, got {data=}")
+        # check if we get OK
+        if data.decode() != constants.OK_RESPONSE:
+            print("Failed to connect to master")
+        self.master_conn.sendall(
+            data_types.RespArray(
+                [
+                    data_types.RespBulkString("REPLCONF"),
+                    data_types.RespBulkString("capa"),
+                    data_types.RespBulkString("psync2"),
+                ]
             )
-            data = self.master_conn.recv(1024)
-            print(f"Replica sent REPLCONF 1, got {data=}")
-            # check if we get OK
-            if data.decode() != constants.OK_RESPONSE:
-                print("Failed to connect to master")
-            self.master_conn.sendall(
-                data_types.RespArray(
-                    [
-                        data_types.RespBulkString("REPLCONF"),
-                        data_types.RespBulkString("capa"),
-                        data_types.RespBulkString("psync2"),
-                    ]
-                )
-                .encode()
-                .encode()
+            .encode()
+            .encode()
+        )
+        data = self.master_conn.recv(constants.BUFFER_SIZE)
+        print(f"Replica sent REPLCONF 2, got {data=}")
+        # check if we get OK
+        if data.decode() != constants.OK_RESPONSE:
+            print("Failed to connect to master")
+        self.master_conn.sendall(
+            data_types.RespArray(
+                [
+                    data_types.RespBulkString("PSYNC"),
+                    data_types.RespBulkString(str(self.info["master_replid"])),
+                    data_types.RespBulkString(str(self.info["master_repl_offset"])),
+                ]
             )
-            data = self.master_conn.recv(1024)
-            print(f"Replica sent REPLCONF 2, got {data=}")
-            # check if we get OK
-            if data.decode() != constants.OK_RESPONSE:
-                print("Failed to connect to master")
-            self.master_conn.sendall(
-                data_types.RespArray(
-                    [
-                        data_types.RespBulkString("PSYNC"),
-                        data_types.RespBulkString(str(self.info["master_replid"])),
-                        data_types.RespBulkString(str(self.info["master_repl_offset"])),
-                    ]
-                )
-                .encode()
-                .encode()
-            )
-            data = self.master_conn.recv(1024)
-            print(f"Replica sent PSYNC, got {data=}")
+            .encode()
+            .encode()
+        )
+        data = self.master_conn.recv(constants.BUFFER_SIZE)
+        print(f"Replica sent PSYNC, got {data=}")
+
+        while True:
+            data = self.master_conn.recv(constants.BUFFER_SIZE)
+            if not data:
+                break
+            print(f"raw {data=}")
+            cmd = codec.parse_cmd(data)
+            cmd.execute(db, self)
+
+    def propogate(self, raw_cmd: str):
+        for slave in self.slaves:
+            slave.sendall(raw_cmd.encode())
 
     def get_info(self) -> str:
         # encode each kv as a RespBulkString
