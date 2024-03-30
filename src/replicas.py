@@ -97,8 +97,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             .encode()
             .encode()
         )
-        data = self.master_conn.recv(constants.BUFFER_SIZE)
-        print(f"Replica sent PSYNC, got {data=}")
+        print(f"Replica sent PSYNC")
 
         while True:
             print("Replica waiting for master...")
