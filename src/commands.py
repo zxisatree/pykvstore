@@ -193,7 +193,7 @@ class WaitCommand(Command):
             while (
                 replica_handler.ack_count < self.replica_count and datetime.now() < end
             ):
-                print(f"{end - datetime.now()=}, {replica_handler.ack_count=}")
+                pass
             return data_types.RespInteger(replica_handler.ack_count).encode()
         else:
             return constants.OK_SIMPLE_STRING.encode()
