@@ -92,6 +92,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             ).encode()
         )
         print(f"Replica sent PSYNC")
+        handshake_step = 0
 
         while True:
             print("Replica waiting for master...")
@@ -104,11 +105,30 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             print(f"replica {cmds=}")
             if isinstance(cmds, list):
                 for cmd in cmds:
+                    if handshake_step != 2:
+                        handshake_step = self.handle_handshake_psync(
+                            handshake_step, cmd
+                        )
                     self.respond_to_master(cmd, db)
                     self.info["master_repl_offset"] += len(data)
             else:
+                if handshake_step != 2:
+                    handshake_step = self.handle_handshake_psync(handshake_step, cmd)
                 self.respond_to_master(cmds, db)
                 self.info["master_repl_offset"] += len(data)
+
+    def handle_handshake_psync(
+        self, handshake_step: int, cmd: "commands.Command"
+    ) -> int:
+        # check if we get FULLRESYNC and RDB file
+        if handshake_step == 0 and isinstance(cmd, commands.FullResyncCommand):
+            print("Replica got FULLRESYNC")
+            return 1
+        elif handshake_step == 1 and isinstance(cmd, commands.RdbFileCommand):
+            print("Replica got RDB file")
+            return 2
+        else:
+            return handshake_step
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
