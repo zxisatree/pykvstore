@@ -190,7 +190,7 @@ class WaitCommand(Command):
                     queue.get(timeout=(datetime.now() - start).total_seconds())
                     ack_count += 1
                 except:
-                    pass
-            return data_types.RespInteger(len(replica_handler.slaves)).encode()
+                    break
+            return data_types.RespInteger(ack_count).encode()
         else:
             return constants.OK_SIMPLE_STRING.encode()
