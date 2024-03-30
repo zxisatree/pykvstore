@@ -90,6 +90,12 @@ def parse_resp_cmd(cmd: str, resp_data: data_types.RespArray) -> commands.Comman
         # should check for next word, but only replication is supported
         return commands.InfoCommand()
     elif cmd_str == "REPLCONF":
+        if len(cmd) > 1 and cmd[2].upper() == "GETACK":
+            if len(cmd) < 3 or cmd[3] != "*":
+                exception_msg = f"Unsupported command (command too short or third argument not *) {resp_data[2]}, {type(resp_data[2])}"
+                print(exception_msg)
+                raise Exception(exception_msg)
+            return commands.ReplConfGetAckCommand()
         return commands.ReplConfCommand()
     elif cmd_str == "PSYNC":
         return commands.PsyncCommand()

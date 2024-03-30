@@ -78,6 +78,17 @@ class ReplConfCommand(Command):
         return constants.OK_RESPONSE
 
 
+class ReplConfGetAckCommand(Command):
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> str:
+        return data_types.RespArray(
+            [
+                data_types.RespBulkString("REPLCONF"),
+                data_types.RespBulkString("ACK"),
+                data_types.RespBulkString(replica_handler.info["master_repl_offset"]),
+            ]
+        ).encode()
+
+
 class PsyncCommand(Command):
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
