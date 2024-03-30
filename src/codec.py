@@ -92,9 +92,16 @@ def parse_resp_cmd(
         # should check for next word, but only replication is supported
         return commands.InfoCommand()
     elif cmd_str == "REPLCONF":
-        if len(resp_data) > 1:
-            print(f"parse_cmd got ReplConfGetAckCommand")
-            return commands.ReplConfGetAckCommand(cmd[start:end])
+        if len(resp_data) >= 3:
+            cmd_str2 = resp_data[1]
+            if not isinstance(cmd_str2, data_types.RespBulkString):
+                exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+                print(exception_msg)
+                raise Exception(exception_msg)
+            if cmd_str2.data.upper() == "GETACK":
+                print(f"parse_cmd got ReplConfGetAckCommand")
+                return commands.ReplConfGetAckCommand(cmd[start:end])
+            return commands.ReplConfCommand()
         print(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand()
     elif cmd_str == "PSYNC":
