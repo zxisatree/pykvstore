@@ -109,13 +109,17 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                         handshake_step = self.handle_handshake_psync(
                             handshake_step, cmd
                         )
-                    self.respond_to_master(cmd, db)
-                    self.info["master_repl_offset"] += len(data)
+                        self.respond_to_master(cmd, db)
+                    else:
+                        self.respond_to_master(cmd, db)
+                        self.info["master_repl_offset"] += len(data)
             else:
                 if handshake_step != 2:
                     handshake_step = self.handle_handshake_psync(handshake_step, cmd)
-                self.respond_to_master(cmds, db)
-                self.info["master_repl_offset"] += len(data)
+                    self.respond_to_master(cmds, db)
+                else:
+                    self.respond_to_master(cmds, db)
+                    self.info["master_repl_offset"] += len(data)
 
     def handle_handshake_psync(
         self, handshake_step: int, cmd: "commands.Command"
