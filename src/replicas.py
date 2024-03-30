@@ -114,9 +114,9 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         executed = cmd.execute(db, self, self.master_conn)
         print(f"replica respond_to_master {executed=}, {cmd=}")
         if isinstance(cmd, commands.ReplConfGetAckCommand):
-            if isinstance(executed, str):  # impossible to get list here
+            if isinstance(executed, bytes):  # impossible to get list here
                 print(f"responding {executed}")
-                self.master_conn.sendall(executed.encode())
+                self.master_conn.sendall(executed)
 
     def propogate(self, raw_cmd: bytes):
         for slave in self.slaves:

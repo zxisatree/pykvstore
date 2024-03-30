@@ -68,10 +68,7 @@ def execute_cmd(
     if isinstance(executed, list):
         for resp in executed:
             print(f"responding {resp}")
-            if isinstance(resp, bytes):
-                conn.sendall(resp)
-            if isinstance(resp, str):
-                conn.sendall(resp.encode())
+            conn.sendall(resp)
     else:
         print(f"responding {executed}")
         conn.sendall(executed)
