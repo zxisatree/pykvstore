@@ -103,14 +103,16 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 print("Replica breaking")
                 break
             cmds = codec.parse_cmd(data)
+            print(f"replica {cmds=}")
             if isinstance(cmds, list):
                 for cmd in cmds:
                     self.respond_to_master(cmd, db)
             else:
                 self.respond_to_master(cmds, db)
 
-    def respond_to_master(self, cmd, db):
+    def respond_to_master(self, cmd: commands.Command, db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
+        print(f"replica respond_to_master {executed=}, {cmd=}")
         if isinstance(cmd, commands.ReplConfGetAckCommand):
             if isinstance(executed, str):  # impossible to get list here
                 print(f"responding {executed}")
