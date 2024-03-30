@@ -29,14 +29,14 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.slaves: list[socket.socket] = []
         self.info = {
             "role": "master" if is_master else "slave",
-            "connected_slaves": 0,
+            "connected_slaves": len(self.slaves),
             "master_replid": self.id if is_master else "?",
             "master_repl_offset": 0 if is_master else -1,
-            "second_repl_offset": -1,
-            "repl_backlog_active": 0,
-            "repl_backlog_size": 1048576,
-            "repl_backlog_first_byte_offset": 0,
-            "repl_backlog_histlen": 0,
+            # "second_repl_offset": -1,
+            # "repl_backlog_active": 0,
+            # "repl_backlog_size": 1048576,
+            # "repl_backlog_first_byte_offset": 0,
+            # "repl_backlog_histlen": 0,
         }
         # attempt to connect to master
         if not is_master:
@@ -108,9 +108,31 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             cmds = codec.parse_cmd(data)
             if isinstance(cmds, list):
                 for cmd in cmds:
-                    cmd.execute(db, self, self.master_conn)
+                    executed = cmd.execute(db, self, self.master_conn)
+                    if isinstance(cmd, commands.ReplConfGetAckCommand):
+                        if isinstance(executed, list):
+                            for resp in executed:
+                                print(f"responding {resp}")
+                                if isinstance(resp, bytes):
+                                    self.master_conn.sendall(resp)
+                                if isinstance(resp, str):
+                                    self.master_conn.sendall(resp.encode())
+                        else:
+                            print(f"responding {executed}")
+                            self.master_conn.sendall(executed.encode())
             else:
                 cmds.execute(db, self, self.master_conn)
+                if isinstance(cmd, commands.ReplConfGetAckCommand):
+                    if isinstance(executed, list):
+                        for resp in executed:
+                            print(f"responding {resp}")
+                            if isinstance(resp, bytes):
+                                self.master_conn.sendall(resp)
+                            if isinstance(resp, str):
+                                self.master_conn.sendall(resp.encode())
+                    else:
+                        print(f"responding {executed}")
+                        self.master_conn.sendall(executed.encode())
 
     def propogate(self, raw_cmd: str):
         for slave in self.slaves:
