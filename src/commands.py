@@ -4,15 +4,20 @@ from datetime import datetime
 import data_types
 import database
 import constants
+import replicas
 
 
 class Command(ABC):
     @abstractmethod
-    def execute(self, db: database.Database) -> str: ...
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str: ...
 
 
 class PingCommand(Command):
-    def execute(self, db: database.Database) -> str:
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str:
         return data_types.RespSimpleString("PONG").encode()
 
 
@@ -20,7 +25,9 @@ class EchoCommand(Command):
     def __init__(self, bulk_str: data_types.RespBulkString):
         self.msg = bulk_str.data
 
-    def execute(self, db: database.Database) -> str:
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str:
         return data_types.RespSimpleString(self.msg).encode()
 
 
@@ -35,7 +42,9 @@ class SetCommand(Command):
         self.value = value.data
         self.expiry = expiry
 
-    def execute(self, db: database.Database) -> str:
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str:
         db[self.key] = (self.value, self.expiry)
         return constants.OK_RESPONSE
 
@@ -44,7 +53,9 @@ class GetCommand(Command):
     def __init__(self, key: data_types.RespBulkString):
         self.key = key.data
 
-    def execute(self, db: database.Database) -> str:
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str:
         if self.key in db:
             return data_types.RespBulkString(db[self.key]).encode()
         return constants.NULL_BULK_STRING
@@ -52,11 +63,14 @@ class GetCommand(Command):
 
 class CommandCommand(Command):
     # TODO
-    def execute(self, db: database.Database) -> str:
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str:
         return constants.OK_RESPONSE
 
 
 class InfoCommand(Command):
-    # TODO
-    def execute(self, db: database.Database) -> str:
-        return constants.OK_RESPONSE
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler
+    ) -> str:
+        return replica_handler.get_info()

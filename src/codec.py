@@ -72,6 +72,7 @@ def parse_cmd(cmd_bytes: bytes) -> commands.Command:
     elif cmd_str == "COMMAND":
         return commands.CommandCommand()
     elif cmd_str == "INFO":
+        # should check for next word, but only replication is supported
         return commands.InfoCommand()
     else:
         exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
