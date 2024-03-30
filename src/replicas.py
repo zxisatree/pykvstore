@@ -1,3 +1,5 @@
+import uuid
+
 import singleton_meta
 import data_types
 
@@ -7,10 +9,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
 
     def __init__(self, is_master: bool, replica_of: list):
         self.is_master = is_master
+        self.id = str(uuid.uuid4())
         self.info = {
             "role": "master" if is_master else "slave",
             "connected_slaves": 0,
-            "master_replid": "",
+            "master_replid": self.id,
             "master_repl_offset": 0,
             "second_repl_offset": -1,
             "repl_backlog_active": 0,
