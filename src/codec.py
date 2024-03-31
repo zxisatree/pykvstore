@@ -139,6 +139,13 @@ def parse_resp_cmd(
             print(exception_msg)
             raise Exception(exception_msg)
         return commands.KeysCommand(cmd[start:end], pattern.data)
+    elif cmd_str == b"TYPE":
+        key = resp_data[1]
+        if not isinstance(key, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        return commands.TypeCommand(cmd[start:end], key.data)
     else:
         return commands.RdbFileCommand(cmd[start:end])
         # exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"

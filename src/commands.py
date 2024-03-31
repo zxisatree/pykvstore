@@ -198,7 +198,12 @@ class KeysCommand(Command):
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
         print(f"executing KeysCommand, {self.raw_cmd=}, {self.pattern=}")
         return data_types.RespArray(
-            list(map(lambda x: data_types.RespBulkString(x.encode()), db.rdb.key_values.keys()))
+            list(
+                map(
+                    lambda x: data_types.RespBulkString(x.encode()),
+                    db.rdb.key_values.keys(),
+                )
+            )
         ).encode()
 
 
@@ -238,3 +243,14 @@ class WaitCommand(Command):
             if replica_handler.ack_count > 0
             else len(replica_handler.slaves)
         ).encode()
+
+
+class TypeCommand(Command):
+    def __init__(self, raw_cmd: bytes, key: bytes):
+        self._raw_cmd = raw_cmd
+        self.key = key
+
+    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+        if self.key.decode() in db:
+            return data_types.RespSimpleString(b"string").encode()
+        return data_types.RespSimpleString(b"none").encode()
