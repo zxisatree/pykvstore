@@ -4,7 +4,7 @@ class RdbFile:
         print(f"{data=}")
         self.idx = 9  # ignore magic string and version number
         self.buffer = []
-        self.key_values = {}
+        self.key_values: dict[bytes, bytes] = {}
         self.read_rdb()
 
     def read_rdb(self):

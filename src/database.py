@@ -20,7 +20,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         else:
             self.rdb = rdb.RdbFile(b"")
         for key, value in self.rdb.key_values.items():
-            self.store[key] = (value, None)
+            self.store[key.decode()] = (value.decode(), None)
+        print(f"db {self.store=}")
 
     def __len__(self) -> int:
         with self.lock:
