@@ -177,6 +177,21 @@ def parse_resp_cmd(
             xrange_start.data.decode(),
             xrange_end.data.decode(),
         )
+    elif cmd_str == b"XREAD":
+        # first argument should be "streams"
+        stream_key = resp_data[2]
+        if not isinstance(stream_key, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        stream_id = resp_data[3]
+        if not isinstance(stream_id, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        return commands.XreadCommand(
+            cmd[start:end], stream_key.data.decode(), stream_id.data.decode()
+        )
     else:
         return commands.RdbFileCommand(cmd[start:end])
         # exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"

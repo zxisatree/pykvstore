@@ -311,3 +311,13 @@ class XrangeCommand(Command):
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
         print(f"executing XrangeCommand, {self.key=}, {self.start=}, {self.end=}")
         return db.xrange(self.key.decode(), self.start, self.end)
+
+class XreadCommand(Command):
+    def __init__(self, raw_cmd: bytes, stream_key: str, id: str):
+        self._raw_cmd = raw_cmd
+        self.stream_key = stream_key
+        self.id = id
+
+    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+        print(f"executing XreadCommand, {self.stream_key=}, {self.id=}")
+        return db.xread(self.stream_key, self.id)
