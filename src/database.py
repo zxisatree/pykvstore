@@ -226,8 +226,19 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 original_lens = [
                     len(self.store[stream_key]) for stream_key in stream_keys
                 ]
-            time.sleep(timeout / 1e3)
             print(f"{original_lens=}")
+            if timeout != 0:
+                time.sleep(timeout / 1e3)
+            else:
+                while True:
+                    time.sleep(0.5)
+                    with self.lock:
+                        new_lens = [
+                            len(self.store[stream_key]) for stream_key in stream_keys
+                        ]
+                        for i in range(len(original_lens)):
+                            if new_lens[i] != original_lens[i]:
+                                break
         with self.lock:
             res = []
             for i in range(len(stream_keys)):
