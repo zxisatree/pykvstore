@@ -260,7 +260,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
                 print(
-                    f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {original_lens[i]=}, {value=}"
+                    f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {value=}"
                 )
                 for i in range(range_start, len(value)):
                     if StreamId(value[i]["id"]) > stream_id:
