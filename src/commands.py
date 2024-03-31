@@ -196,12 +196,10 @@ class KeysCommand(Command):
         self.pattern = pattern
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
-        # keys = []
-        # for key in db.keys():
-        #     if key.startswith(self.pattern):
-        #         keys.append(data_types.RespBulkString(key.encode()))
         print(f"executing KeysCommand, {self.raw_cmd=}, {self.pattern=}")
-        return data_types.RespArray([]).encode()
+        return data_types.RespArray(
+            list(map(lambda x: data_types.RespBulkString(x), db.rdb.key_values.keys()))
+        ).encode()
 
 
 class WaitCommand(Command):
