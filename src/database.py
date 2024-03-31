@@ -102,6 +102,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return False
             if not cur_value:
                 return True
+            print(f"{cur_value[-1]=}")
             last_mst, last_seq_no = cur_value[-1]["id"].split("-")
             if int(milliseconds_time) < int(last_mst):
                 return False
@@ -119,4 +120,4 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if not isinstance(cur_value, list):
                 print(f"stream key {key} is not a stream")
                 raise Exception(f"stream key {key} is not a stream")
-            cur_value.append({id: id, **value})
+            cur_value.append({"id": id, **value})
