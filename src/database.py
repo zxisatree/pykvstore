@@ -1,4 +1,5 @@
 from datetime import datetime
+import functools
 from threading import RLock
 import os
 
@@ -170,15 +171,21 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             value = self.store[key]
             if not isinstance(value, list):
                 return constants.XRANGE_ON_NON_STREAM_ERROR.encode()
+            if "-" not in start:
+                start = f"{start}-0"
+            if "-" not in end:
+                end = f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}"
+            start_stream_id = StreamId(start)
+            end_stream_id = StreamId(end)
             lo, hi = None, None
             for i in range(len(value)):
-                if value[i]["id"].split("-")[0] > start:
+                if StreamId(value[i]["id"]) > start_stream_id:
                     lo = i
                     break
             if not lo:
-                return b""
+                return data_types.RespArray([]).encode()
             for i in range(lo, len(value)):
-                if value[i]["id"].split("-")[0] > end:
+                if StreamId(value[i]["id"]) > end_stream_id:
                     hi = i
                     break
             if not hi:
@@ -200,3 +207,40 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     )
                 )
             return data_types.RespArray(res).encode()
+
+
+@functools.total_ordering
+class StreamId:
+    def __init__(self, id_str: str):
+        milliseconds_time, seq_no = id_str.split("-")
+        self.validate(milliseconds_time, seq_no)
+        self.milliseconds_time = milliseconds_time
+        self.seq_no = seq_no
+
+    def validate(self, milliseconds_time: str, seq_no: str) -> bool:
+        if milliseconds_time == "0" and seq_no == "0":
+            print(f"Invalid stream id {milliseconds_time}-{seq_no}")
+            return False
+        return True
+
+    def __repr__(self) -> str:
+        return f"StreamId({self.milliseconds_time}-{self.seq_no})"
+
+    def __str__(self) -> str:
+        return f"{self.milliseconds_time}-{self.seq_no}"
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, StreamId):
+            return False
+        return (
+            self.milliseconds_time == other.milliseconds_time
+            and self.seq_no == other.seq_no
+        )
+
+    def __lt__(self, other: "StreamId"):
+        if self.milliseconds_time != other.milliseconds_time:
+            return self.milliseconds_time < other.milliseconds_time
+        return self.seq_no < other.seq_no
+
+    def next_seq_id(self) -> "StreamId":
+        return StreamId(f"{self.milliseconds_time}-{int(self.seq_no) + 1}")
