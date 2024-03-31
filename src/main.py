@@ -18,7 +18,7 @@ import replicas
 def main():
     argparser = setup_argpaser()
     args = argparser.parse_args()
-    db = database.Database()
+    db = database.Database(args.dir, args.dbfilename)
     replica_handler = replicas.ReplicaHandler(
         False if args.replicaof else True, "localhost", args.port, args.replicaof, db
     )
@@ -87,6 +87,18 @@ def setup_argpaser() -> argparse.ArgumentParser:
         nargs=2,
         default=None,
         help="Master IP and port to replicate from (default: None)",
+    )
+    argparser.add_argument(
+        "--dir",
+        type=str,
+        default="./rdb",
+        help="Directory where RDB files are stored (default: ./rdb)",
+    )
+    argparser.add_argument(
+        "--dbfilename",
+        type=str,
+        default="dump.rdb",
+        help="The name of the RDB file (default: dump.rdb)",
     )
     return argparser
 

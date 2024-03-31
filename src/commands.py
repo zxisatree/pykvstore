@@ -167,6 +167,29 @@ class RdbFileCommand(Command):
         return b""
 
 
+class ConfigGetCommand(Command):
+    def __init__(self, raw_cmd: bytes, key: bytes):
+        self._raw_cmd = raw_cmd
+        self.key = key
+
+    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+        if self.key.upper() == b"DIR":
+            return data_types.RespArray(
+                [
+                    data_types.RespBulkString(self.key),
+                    data_types.RespBulkString(db.dir.encode()),
+                ]
+            ).encode()
+        elif self.key.upper() == b"DBFILENAME":
+            return data_types.RespArray(
+                [
+                    data_types.RespBulkString(self.key),
+                    data_types.RespBulkString(db.dbfilename.encode()),
+                ]
+            ).encode()
+        return constants.OK_SIMPLE_STRING.encode()
+
+
 class WaitCommand(Command):
     def __init__(self, raw_cmd: bytes, replica_count: int, timeout: int):
         self._raw_cmd = raw_cmd

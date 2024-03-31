@@ -8,6 +8,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
     store: dict[str, tuple[str, datetime | None]] = {}
 
+    def __init__(self, dir: str, dbfilename: str):
+        self.dir = dir
+        self.dbfilename = dbfilename
+
     def __len__(self) -> int:
         with self.lock:
             return len(self.store)
