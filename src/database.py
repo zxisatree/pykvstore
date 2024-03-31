@@ -1,7 +1,9 @@
-from threading import RLock
 from datetime import datetime
+from threading import RLock
+import os
 
 import singleton_meta
+import rdb
 
 
 class Database(metaclass=singleton_meta.SingletonMeta):
@@ -11,6 +13,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir
         self.dbfilename = dbfilename
+        with open(os.path.join(self.dir, self.dbfilename), "rb") as f:
+            self.rdb = rdb.RdbFile(f.read())
 
     def __len__(self) -> int:
         with self.lock:

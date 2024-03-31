@@ -190,6 +190,20 @@ class ConfigGetCommand(Command):
         return constants.OK_SIMPLE_STRING.encode()
 
 
+class KeysCommand(Command):
+    def __init__(self, raw_cmd: bytes, pattern: bytes):
+        self._raw_cmd = raw_cmd
+        self.pattern = pattern
+
+    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+        # keys = []
+        # for key in db.keys():
+        #     if key.startswith(self.pattern):
+        #         keys.append(data_types.RespBulkString(key.encode()))
+        print(f"executing KeysCommand, {self.raw_cmd=}, {self.pattern=}")
+        return data_types.RespArray([]).encode()
+
+
 class WaitCommand(Command):
     def __init__(self, raw_cmd: bytes, replica_count: int, timeout: int):
         self._raw_cmd = raw_cmd
