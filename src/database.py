@@ -227,6 +227,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     len(self.store[stream_key]) for stream_key in stream_keys
                 ]
             time.sleep(timeout / 1e3)
+            print(f"{original_lens=}")
         with self.lock:
             res = []
             for i in range(len(stream_keys)):
@@ -238,6 +239,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 stream_id = StreamId(id)
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
+                print(f"{stream_key=}, {range_start=}, {len(value)=}, {value=}")
                 for i in range(range_start, len(value)):
                     if StreamId(value[i]["id"]) > stream_id:
                         lo = i
