@@ -321,4 +321,6 @@ class XreadCommand(Command):
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
         print(f"executing XreadCommand, {self.stream_keys=}, {self.ids=}")
-        return db.xread(self.stream_keys, self.ids)
+        res = db.xread(self.stream_keys, self.ids)
+        print(f"xread returning {res=}")
+        return res

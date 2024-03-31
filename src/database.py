@@ -250,7 +250,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                             ]
                         )
                     )
-                res.append(data_types.RespArray(inter))
+                res.append(
+                    data_types.RespArray(
+                        [data_types.RespBulkString(stream_key.encode()), *inter]
+                    )
+                )
             return data_types.RespArray(res).encode()
 
 
