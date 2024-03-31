@@ -83,14 +83,16 @@ class RdbFile:
                 expiry = datetime.datetime.fromtimestamp(
                     int.from_bytes(self.read(4), "little"), datetime.UTC
                 )
+                expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))
                 self.key_values[key.decode()] = (value.decode(), expiry)
                 print(f"got expiry s kv {expiry=}, {key=}, {value=}")
             case b"\xfc":
                 # expiry time in ms
-                value = int.from_bytes(self.read(8), "little")
-                print(f"{value=}")
-                expiry = datetime.datetime.fromtimestamp(value / 1e3, datetime.UTC)
+                expiry = datetime.datetime.fromtimestamp(
+                    int.from_bytes(self.read(8), "little") / 1e3, datetime.UTC
+                )
+                expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))
                 self.key_values[key.decode()] = (value.decode(), expiry)
                 print(f"got expiry ms kv {expiry=}, {key=}, {value=}")

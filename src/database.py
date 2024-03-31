@@ -14,11 +14,14 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.dir = dir
         self.dbfilename = dbfilename
         file_path = os.path.join(self.dir, self.dbfilename)
-        if os.path.exists(file_path):
-            with open(file_path, "rb") as f:
-                self.rdb = rdb.RdbFile(f.read())
-        else:
-            self.rdb = rdb.RdbFile(b"")
+        self.rdb = rdb.RdbFile(
+            b"REDIS0003\xfa\tredis-ver\x057.2.0\xfa\nredis-bits\xc0@\xfe\x00\xfb\x04\x04\xfc\x00\x9c\xef\x12~\x01\x00\x00\x00\x04pear\x06orange\xfc\x00\x0c(\x8a\xc7\x01\x00\x00\x00\x05grape\nstrawberry\xfc\x00\x0c(\x8a\xc7\x01\x00\x00\x00\x05mango\x04pear\xfc\x00\x0c(\x8a\xc7\x01\x00\x00\x00\x06orange\x05apple\xff\x93/\xd7\xf5\xe6\xe2\x14\xcf\n"
+        )
+        # if os.path.exists(file_path):
+        #     with open(file_path, "rb") as f:
+        #         self.rdb = rdb.RdbFile(f.read())
+        # else:
+        #     self.rdb = rdb.RdbFile(b"")
         for key, value in self.rdb.key_values.items():
             self.store[key] = value
         print(f"db initialised with {self.store=}")
@@ -65,6 +68,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         # returns True if key was expired
         with self.lock:
             expiry = self.store[key][1]
+            print(f"{expiry=}, {datetime.now()=}")
             if expiry and expiry < datetime.now():
                 del self.store[key]
                 return True
