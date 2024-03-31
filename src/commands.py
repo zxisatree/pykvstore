@@ -177,19 +177,19 @@ class WaitCommand(Command):
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> bytes:
         print(f"executing WaitCommand, {replica_handler.is_master=}")
-        end = datetime.now() + self.timeout
+        now = datetime.now()
+        end = now + self.timeout
+        print(f"{now=}, {self.timeout=}, {end=}")
         replica_handler.ack_count = 0
-        for slave in replica_handler.slaves:
-            print(f"sending to {slave=}")
-            slave.sendall(
-                data_types.RespArray(
-                    [
-                        data_types.RespBulkString(b"REPLCONF"),
-                        data_types.RespBulkString(b"GETACK"),
-                        data_types.RespBulkString(b"*"),
-                    ]
-                ).encode()
-            )
+        replica_handler.propogate(
+            data_types.RespArray(
+                [
+                    data_types.RespBulkString(b"REPLCONF"),
+                    data_types.RespBulkString(b"GETACK"),
+                    data_types.RespBulkString(b"*"),
+                ]
+            ).encode()
+        )
         print(f"finished sending to all slaves")
         while replica_handler.ack_count < self.replica_count and datetime.now() < end:
             pass
