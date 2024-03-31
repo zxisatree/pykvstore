@@ -229,6 +229,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             print(f"{original_lens=}")
             if timeout != 0:
                 time.sleep(timeout / 1e3)
+                print(f"timeout complete")
             else:
                 while True:
                     time.sleep(0.5)
@@ -241,6 +242,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                             if new_lens[i] != original_lens[i]:
                                 to_break = True
                         if to_break:
+                            print(f"{new_lens=}")
                             break
 
         with self.lock:
@@ -256,7 +258,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 stream_id = StreamId(id)
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
-                print(f"{stream_key=}, {range_start=}, {len(value)=}, {value=}")
+                print(f"{stream_key=}, {id=}, {range_start=}, {len(value)=}, {value=}")
                 for i in range(range_start, len(value)):
                     if StreamId(value[i]["id"]) > stream_id:
                         lo = i
