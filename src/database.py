@@ -217,44 +217,41 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 )
             return data_types.RespArray(res).encode()
 
-    def xread(self, stream_key: str, id: str) -> bytes:
-        value = self.store[stream_key]
-        if not isinstance(value, list):
-            return constants.XOP_ON_NON_STREAM_ERROR.encode()
-        stream_id = StreamId(id)
-        lo = None
-        for i in range(len(value)):
-            if StreamId(value[i]["id"]) > stream_id:
-                lo = i
-                break
-        if lo is None:
-            return data_types.RespArray([]).encode()
-        res: list[data_types.RespDataType] = []
-        for i in range(lo, len(value)):
-            flattened_kvs = []
-            for k, v in value[i].items():
-                if k == "id":
-                    continue
-                flattened_kvs.append(data_types.RespBulkString(k.encode()))
-                flattened_kvs.append(data_types.RespBulkString(v.encode()))
-            res.append(
-                data_types.RespArray(
-                    [
-                        data_types.RespBulkString(value[i]["id"].encode()),
-                        data_types.RespArray(flattened_kvs),
-                    ]
-                )
-            )
-        return data_types.RespArray(
-            [
-                data_types.RespArray(
-                    [
-                        data_types.RespBulkString(stream_key.encode()),
-                        data_types.RespArray([*res]),
-                    ]
-                )
-            ]
-        ).encode()
+    def xread(self, stream_keys: list[str], ids: list[str]) -> bytes:
+        with self.lock:
+            res = []
+            for i in range(len(stream_keys)):
+                stream_key = stream_keys[i]
+                id = ids[i]
+                value = self.store[stream_key]
+                if not isinstance(value, list):
+                    return constants.XOP_ON_NON_STREAM_ERROR.encode()
+                stream_id = StreamId(id)
+                lo = None
+                for i in range(len(value)):
+                    if StreamId(value[i]["id"]) > stream_id:
+                        lo = i
+                        break
+                if lo is None:
+                    return data_types.RespArray([]).encode()
+                inter: list[data_types.RespDataType] = []
+                for i in range(lo, len(value)):
+                    flattened_kvs = []
+                    for k, v in value[i].items():
+                        if k == "id":
+                            continue
+                        flattened_kvs.append(data_types.RespBulkString(k.encode()))
+                        flattened_kvs.append(data_types.RespBulkString(v.encode()))
+                    inter.append(
+                        data_types.RespArray(
+                            [
+                                data_types.RespBulkString(value[i]["id"].encode()),
+                                data_types.RespArray(flattened_kvs),
+                            ]
+                        )
+                    )
+                res.append(data_types.RespArray(inter))
+            return data_types.RespArray(res).encode()
 
 
 @functools.total_ordering
