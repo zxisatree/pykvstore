@@ -7,7 +7,7 @@ class RdbFile:
         print(f"{data=}")
         self.idx = 9  # ignore magic string and version number
         self.buffer = []
-        self.key_values: dict[str, tuple[str, datetime | None]] = {}
+        self.key_values: dict[str, tuple[str, datetime.datetime | None]] = {}
         self.read_rdb()
 
     def read_rdb(self):
@@ -81,14 +81,14 @@ class RdbFile:
             case b"\xfd":
                 # expiry time in s
                 expiry = datetime.datetime.fromtimestamp(
-                    int.from_bytes(self.read(4)), datetime.UTC
+                    int.from_bytes(self.read(4), "little"), datetime.UTC
                 )
                 key, value = self.parse_kv(self.read(1))
                 self.key_values[key.decode()] = (value.decode(), expiry)
                 print(f"got expiry s kv {expiry=}, {key=}, {value=}")
             case b"\xfc":
                 # expiry time in ms
-                value = int.from_bytes(self.read(8))
+                value = int.from_bytes(self.read(8), "little")
                 print(f"{value=}")
                 expiry = datetime.datetime.fromtimestamp(value / 1e3, datetime.UTC)
                 key, value = self.parse_kv(self.read(1))
