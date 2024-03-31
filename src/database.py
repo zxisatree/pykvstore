@@ -236,16 +236,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                         new_lens = [
                             len(self.store[stream_key]) for stream_key in stream_keys
                         ]
-                        print(f"{new_lens=}")
                         to_break = False
                         for i in range(len(original_lens)):
-                            print(f"{i=}, {new_lens[i]=}, {original_lens[i]=}")
                             if new_lens[i] != original_lens[i]:
                                 to_break = True
                         if to_break:
                             break
 
-        print(f"xread starting actual loop")
         with self.lock:
             res = []
             for i in range(len(stream_keys)):
@@ -254,6 +251,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 value = self.store[stream_key]
                 if not isinstance(value, list):
                     return constants.XOP_ON_NON_STREAM_ERROR.encode()
+                if id == "$":
+                    id = value[-1]["id"] if value else "0-0"
                 stream_id = StreamId(id)
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
