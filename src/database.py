@@ -192,7 +192,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     break
             # print(f"{lo=}, {hi=}. {end_stream_id=}")
             if not hi:
-                hi = len(value) - 1
+                hi = len(value)
             res = []
             for i in range(lo - 1 if lo != 0 else 0, hi):
                 flattened_kvs = []
