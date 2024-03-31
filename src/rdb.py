@@ -22,9 +22,9 @@ class RdbFile:
 
     def read_length_encoding(self) -> tuple[int, int, int]:
         length_encoding = self.read(1)
-        print(
-            f"read_length_encoding {length_encoding=}, {bin(int.from_bytes(length_encoding))=}"
-        )
+        # print(
+        #     f"read_length_encoding {length_encoding=}, {bin(int.from_bytes(length_encoding))=}"
+        # )
         return (
             int.from_bytes(length_encoding) >> 7,
             (int.from_bytes(length_encoding) >> 6) & 1,
@@ -33,7 +33,7 @@ class RdbFile:
 
     def read_length_encoded_integer(self) -> tuple[int, bool]:
         le0, le1, rest = self.read_length_encoding()
-        print(f"read_length_encoded_integer {le0=}, {le1=}, {rest=}, {bin(rest)=}")
+        # print(f"read_length_encoded_integer {le0=}, {le1=}, {rest=}, {bin(rest)=}")
         if le0 == 0 and le1 == 0:
             return rest, False
         elif le0 == 0 and le1 == 1:
@@ -56,10 +56,10 @@ class RdbFile:
         length, is_int = self.read_length_encoded_integer()
         val = self.read(length)
         if is_int:
-            print(f"read_length_encoded_string {int.from_bytes(val)=}")
+            # print(f"read_length_encoded_string {int.from_bytes(val)=}")
             return str(int.from_bytes(val)).encode()
         else:
-            print(f"read_length_encoded_string {val=}")
+            # print(f"read_length_encoded_string {val=}")
             return val
 
     def parse(self):
@@ -74,15 +74,15 @@ class RdbFile:
                 # database selector
                 db_selector = self.read_length_encoded_integer()[0]
                 self.buffer.append(("db", db_selector))
-                print(f"got db selector {db_selector=}")
+                # print(f"got db selector {db_selector=}")
             case b"\xfd":
                 # expiry time in s
                 expiry = self.read(4)
-                print(f"got expiry {expiry=}")
+                # print(f"got expiry {expiry=}")
             case b"\xfc":
                 # expiry time in ms
                 expiry = self.read(8)
-                print(f"got expiry {expiry=}")
+                # print(f"got expiry {expiry=}")
             case b"\xfb":
                 # resizedb
                 db_hash_table_size = self.read_length_encoded_integer()[0]
@@ -90,13 +90,13 @@ class RdbFile:
                 self.buffer.append(
                     ("resizedb", db_hash_table_size, expiry_hash_table_size)
                 )
-                print(f"got resizedb {db_hash_table_size=}, {expiry_hash_table_size=}")
+                # print(f"got resizedb {db_hash_table_size=}, {expiry_hash_table_size=}")
             case b"\xfa":
                 # aux field
                 aux_key = self.read_length_encoded_string()
                 aux_value = self.read_length_encoded_string()
                 self.buffer.append(("aux", aux_key, aux_value))
-                print(f"parse aux field {aux_key=}, {aux_value=}")
+                # print(f"parse aux field {aux_key=}, {aux_value=}")
             case _:
                 # type, key, value
                 key = self.read_length_encoded_string()
@@ -105,6 +105,6 @@ class RdbFile:
                         # string
                         value = self.read_length_encoded_string()
                         self.key_values[key] = value
-                        print(f"parse string kv {key=}, {value=}")
+                        # print(f"parse string kv {key=}, {value=}")
                 return
-        print(f"{self.idx=}, {len(self.data)=}, {self.buffer=}")
+        # print(f"{self.idx=}, {len(self.data)=}, {self.buffer=}")
