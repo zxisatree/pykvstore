@@ -137,6 +137,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
         splitted_last = last_id.split("-")
         last_milliseconds_time, last_seq_no = splitted_last
+        print(f"{milliseconds_time=}, {last_milliseconds_time=}")
+        print(f"{seq_no=}, {last_seq_no=}")
         if seq_no == "*":
             if milliseconds_time == last_milliseconds_time:
                 seq_no = str(int(last_seq_no) + 1)
