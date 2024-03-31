@@ -238,6 +238,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                         ]
                         print(f"{new_lens=}")
                         for i in range(len(original_lens)):
+                            print(f"{i=}, {new_lens[i]=}, {original_lens[i]=}")
                             if new_lens[i] != original_lens[i]:
                                 break
         print(f"xread starting actual loop")
