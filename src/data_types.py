@@ -129,7 +129,7 @@ class RespBulkString(RespDataType):
 
         bulk_str = data[pos : pos + bulk_str_len]
         pos += bulk_str_len + 2
-        print(f"{data=}, {pos=}, {len(data)=}")
+        # print(f"{data=}, {pos=}, {len(data)=}")
         assert pos <= len(data)
         return (RespBulkString(bulk_str), pos)
 

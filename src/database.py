@@ -190,14 +190,14 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if StreamId(value[i]["id"]) > start_stream_id:
                     lo = i
                     break
-            if not lo:
+            if lo is None:
                 return data_types.RespArray([]).encode()
             for i in range(lo, len(value)):
                 if StreamId(value[i]["id"]) > end_stream_id:
                     hi = i
                     break
             # print(f"{lo=}, {hi=}. {end_stream_id=}")
-            if not hi:
+            if hi is None:
                 hi = len(value)
             res = []
             for i in range(lo - 1 if lo != 0 else 0, hi):
@@ -227,7 +227,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if StreamId(value[i]["id"]) > stream_id:
                 lo = i
                 break
-        if not lo:
+        if lo is None:
             return data_types.RespArray([]).encode()
         res: list[data_types.RespDataType] = []
         for i in range(lo, len(value)):
