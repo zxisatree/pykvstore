@@ -96,12 +96,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             cur_value = self.store[key]
             if not isinstance(cur_value, list):
                 return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
-            milliseconds_time, seq_no = id.split("-")
-            mst_is_star = milliseconds_time == "*"
-            seq_no_is_star = seq_no == "*"
-            # if mst_is_star and seq_no_is_star:
-            if mst_is_star:  # TODO: change after fixing mst autogeneration
+            if id == "*":
                 return None
+            milliseconds_time, seq_no = id.split("-")
+            seq_no_is_star = seq_no == "*"
 
             is_0_0 = milliseconds_time == "0" and seq_no == "0"
             if is_0_0:
@@ -136,6 +134,16 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return processed_id
 
     def process_stream_id(self, id: str, last_id: str | None) -> str:
+        if id == "*":
+            # milliseconds_time should be current time in milliseconds
+            milliseconds_time = str(int(datetime.now().timestamp() * 1000))
+            if not last_id:
+                return f"{milliseconds_time}-0"
+            splitted_last = last_id.split("-")
+            if splitted_last[0] == milliseconds_time:
+                return f"{milliseconds_time}-{int(splitted_last[1]) + 1}"
+            return f"{milliseconds_time}-0"
+
         splitted = id.split("-")
         if len(splitted) != 2:
             raise Exception(f"Invalid stream id {id}")
