@@ -2,6 +2,8 @@ class RdbFile:
     def __init__(self, data: bytes):
         self.data = data
         self.idx = 9  # ignore magic string and version number
+        self.buffer = []
+        self.read_rdb()
 
     def read_rdb(self):
         sanity_check = self.data[0:5]
@@ -37,8 +39,7 @@ class RdbFile:
             # TODO
             return 0
 
-    def parse(self) -> list:
-        buffer = []
+    def parse(self):
         op_code = self.read(1)
         while self.idx < len(self.data):
             match op_code:
@@ -70,5 +71,4 @@ class RdbFile:
                     print(f"got aux field {aux_key=}, {aux_value=}")
                 case _:
                     break
-        print(f"{self.idx=}, {len(self.data)=}")
-        return buffer
+        print(f"{self.idx=}, {len(self.data)=}, {self.buffer=}")
