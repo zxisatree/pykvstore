@@ -281,8 +281,9 @@ class XaddCommand(Command):
         if not isinstance(raw_stream_entry_id, data_types.RespBulkString):
             raise Exception(f"Invalid stream entry id {raw_stream_entry_id}")
         stream_entry_id = raw_stream_entry_id.data
-        if not db.validate_stream_id(self.stream_key.decode(), stream_entry_id.decode()):
-            return data_types.RespSimpleError(b"ERR The ID specified in XADD is equal or smaller than the target stream top item").encode()
+        err = db.validate_stream_id(self.stream_key.decode(), stream_entry_id.decode())
+        if err:
+            return data_types.RespSimpleError(err).encode()
 
         kv_dict = {}
         for i in range(1, len(self.data), 2):

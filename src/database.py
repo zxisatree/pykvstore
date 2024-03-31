@@ -2,8 +2,9 @@ from datetime import datetime
 from threading import RLock
 import os
 
-import singleton_meta
+import constants
 import rdb
+import singleton_meta
 
 
 class Database(metaclass=singleton_meta.SingletonMeta):
@@ -88,29 +89,27 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return True
             return False
 
-    def validate_stream_id(self, key: str, id: str) -> bool:
+    def validate_stream_id(self, key: str, id: str) -> bytes | None:
         with self.lock:
             if key not in self.store:
-                return True
+                return None
             cur_value = self.store[key]
             if not isinstance(cur_value, list):
-                return False
+                return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
             milliseconds_time, seq_no = id.split("-")
-            if int(milliseconds_time) < 0 or (
-                int(milliseconds_time) < 0 and int(seq_no) < 1
-            ):
-                return False
+            if int(milliseconds_time) <= 0 and int(seq_no) <= 0:
+                return constants.STREAM_ID_TOO_SMALL_ERROR.encode()
             if not cur_value:
-                return True
+                return None
             print(f"{cur_value[-1]=}")
             last_mst, last_seq_no = cur_value[-1]["id"].split("-")
             if int(milliseconds_time) < int(last_mst):
-                return False
+                return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
             elif int(milliseconds_time) == int(last_mst) and int(seq_no) <= int(
                 last_seq_no
             ):
-                return False
-            return True
+                return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+            return None
 
     def xadd(self, key: str, id: str, value: dict):
         with self.lock:
