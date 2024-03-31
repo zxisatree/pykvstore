@@ -175,7 +175,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 start = "0-1"
             elif "-" not in start:
                 start = f"{start}-0"
-            if "-" not in end:
+            if end == "+":
+                end = (
+                    value[-1]["id"]
+                    if value
+                    else f"{constants.MAX_STREAM_ID_SEQ_NO}-{constants.MAX_STREAM_ID_SEQ_NO}"
+                )
+            elif "-" not in end:
                 end = f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}"
             start_stream_id = StreamId(start)
             end_stream_id = StreamId(end)
