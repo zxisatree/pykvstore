@@ -126,12 +126,11 @@ def parse_resp_cmd(
     elif cmd_str == b"PSYNC":
         return commands.PsyncCommand(cmd[start:end])
     elif cmd_str == b"CONFIG":
-        key = resp_data[1]
+        key = resp_data[2]
         if not isinstance(key, data_types.RespBulkString):
-            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
             print(exception_msg)
             raise Exception(exception_msg)
-        print(f"ConfigGetCommand {key.data=}, {resp_data[2].data=}")
         return commands.ConfigGetCommand(cmd[start:end], key.data)
     else:
         return commands.RdbFileCommand(cmd[start:end])
