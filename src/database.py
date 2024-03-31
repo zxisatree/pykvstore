@@ -236,9 +236,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                         new_lens = [
                             len(self.store[stream_key]) for stream_key in stream_keys
                         ]
+                        print(f"{new_lens=}")
                         for i in range(len(original_lens)):
                             if new_lens[i] != original_lens[i]:
                                 break
+        print(f"xread starting actual loop")
         with self.lock:
             res = []
             for i in range(len(stream_keys)):
