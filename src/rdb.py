@@ -1,10 +1,13 @@
+import datetime
+
+
 class RdbFile:
     def __init__(self, data: bytes):
         self.data = data
         print(f"{data=}")
         self.idx = 9  # ignore magic string and version number
         self.buffer = []
-        self.key_values: dict[bytes, bytes] = {}
+        self.key_values: dict[str, tuple[str, datetime | None]] = {}
         self.read_rdb()
 
     def read_rdb(self):
@@ -77,12 +80,20 @@ class RdbFile:
                 # print(f"got db selector {db_selector=}")
             case b"\xfd":
                 # expiry time in s
-                expiry = self.read(4)
-                # print(f"got expiry {expiry=}")
+                expiry = datetime.datetime.fromtimestamp(
+                    int.from_bytes(self.read(4)), datetime.UTC
+                )
+                key, value = self.parse_kv(self.read(1))
+                self.key_values[key.decode()] = (value.decode(), expiry)
+                print(f"got expiry s kv {expiry=}, {key=}, {value=}")
             case b"\xfc":
                 # expiry time in ms
-                expiry = self.read(8)
-                # print(f"got expiry {expiry=}")
+                expiry = datetime.datetime.fromtimestamp(
+                    int.from_bytes(self.read(8)) / 1e3, datetime.UTC
+                )
+                key, value = self.parse_kv(self.read(1))
+                self.key_values[key.decode()] = (value.decode(), expiry)
+                print(f"got expiry ms kv {expiry=}, {key=}, {value=}")
             case b"\xfb":
                 # resizedb
                 db_hash_table_size = self.read_length_encoded_integer()[0]
@@ -99,12 +110,17 @@ class RdbFile:
                 # print(f"parse aux field {aux_key=}, {aux_value=}")
             case _:
                 # type, key, value
-                key = self.read_length_encoded_string()
-                match op_code:
-                    case b"\x00":
-                        # string
-                        value = self.read_length_encoded_string()
-                        self.key_values[key] = value
-                        # print(f"parse string kv {key=}, {value=}")
+                key, value = self.parse_kv(op_code)
+                self.key_values[key.decode()] = (value.decode(), None)
+                # print(f"parse string kv {key=}, {value=}")
                 return
         # print(f"{self.idx=}, {len(self.data)=}, {self.buffer=}")
+
+    def parse_kv(self, val_type: bytes) -> tuple[bytes, bytes]:
+        key = self.read_length_encoded_string()
+        match val_type:
+            case b"\x00":
+                # string
+                return key, self.read_length_encoded_string()
+            case _:
+                return key, b""

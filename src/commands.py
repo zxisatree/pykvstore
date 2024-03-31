@@ -198,7 +198,7 @@ class KeysCommand(Command):
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
         print(f"executing KeysCommand, {self.raw_cmd=}, {self.pattern=}")
         return data_types.RespArray(
-            list(map(lambda x: data_types.RespBulkString(x), db.rdb.key_values.keys()))
+            list(map(lambda x: data_types.RespBulkString(x.encode()), db.rdb.key_values.keys()))
         ).encode()
 
 
