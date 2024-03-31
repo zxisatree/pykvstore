@@ -1,6 +1,7 @@
 class RdbFile:
     def __init__(self, data: bytes):
         self.data = data
+        print(f"{data=}")
         self.idx = 9  # ignore magic string and version number
         self.buffer = []
         self.read_rdb()
