@@ -237,7 +237,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return constants.XOP_ON_NON_STREAM_ERROR.encode()
                 stream_id = StreamId(id)
                 lo = None
-                for i in range(original_lens[i], len(value)):
+                range_start = original_lens[i] if timeout is not None else 0
+                for i in range(range_start, len(value)):
                     if StreamId(value[i]["id"]) > stream_id:
                         lo = i
                         break
