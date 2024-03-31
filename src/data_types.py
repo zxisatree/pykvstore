@@ -163,6 +163,35 @@ class RespInteger(RespDataType):
         return (RespInteger(val), pos)
 
 
+class RespSimpleError(RespDataType):
+    def __init__(self, data: bytes):
+        self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __str__(self) -> str:
+        return str(self.data)
+
+    def __repr__(self) -> str:
+        return f"RespSimpleError({repr(self.data)})"
+
+    def encode(self) -> bytes:
+        return b"-" + self.data + b"\r\n"
+
+    @staticmethod
+    def decode(data: bytes, pos: int) -> tuple["RespSimpleError", int]:
+        start = pos + 1
+        while pos < len(data) and not codec.is_sep(data, pos):
+            pos += 1
+        if pos >= len(data):
+            print("Invalid RESP simple error, missing \\r\\n separator")
+        simple_err = data[start:pos]
+        pos += 2
+        assert pos <= len(data)
+        return (RespSimpleError(simple_err), pos)
+
+
 class RdbFile(RespDataType):
     def __init__(self, data: bytes):
         self.data = b64decode(

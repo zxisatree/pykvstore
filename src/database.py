@@ -88,6 +88,29 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return True
             return False
 
+    def validate_stream_id(self, key: str, id: str) -> bool:
+        with self.lock:
+            if key not in self.store:
+                return True
+            cur_value = self.store[key]
+            if not isinstance(cur_value, list):
+                return False
+            milliseconds_time, seq_no = id.split("-")
+            if int(milliseconds_time) < 0 or (
+                int(milliseconds_time) < 0 and int(seq_no) < 1
+            ):
+                return False
+            if not cur_value:
+                return True
+            last_mst, last_seq_no = cur_value[-1]["id"].split("-")
+            if int(milliseconds_time) < int(last_mst):
+                return False
+            elif int(milliseconds_time) == int(last_mst) and int(seq_no) <= int(
+                last_seq_no
+            ):
+                return False
+            return True
+
     def xadd(self, key: str, id: str, value: dict):
         with self.lock:
             if key not in self.store:
