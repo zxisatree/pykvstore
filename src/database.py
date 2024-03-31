@@ -1,6 +1,7 @@
 from datetime import datetime
 import functools
 from threading import RLock
+import time
 import os
 
 import constants
@@ -217,7 +218,15 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 )
             return data_types.RespArray(res).encode()
 
-    def xread(self, stream_keys: list[str], ids: list[str]) -> bytes:
+    def xread(
+        self, stream_keys: list[str], ids: list[str], timeout: int | None
+    ) -> bytes:
+        if timeout is not None:
+            with self.lock:
+                original_lens = [
+                    len(self.store[stream_key]) for stream_key in stream_keys
+                ]
+            time.sleep(timeout / 1e3)
         with self.lock:
             res = []
             for i in range(len(stream_keys)):
@@ -228,12 +237,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return constants.XOP_ON_NON_STREAM_ERROR.encode()
                 stream_id = StreamId(id)
                 lo = None
-                for i in range(len(value)):
+                for i in range(original_lens[i], len(value)):
                     if StreamId(value[i]["id"]) > stream_id:
                         lo = i
                         break
                 if lo is None:
-                    return data_types.RespArray([]).encode()
+                    return constants.NULL_BULK_RESP_STRING.encode()
                 inter: list[data_types.RespDataType] = []
                 for i in range(lo, len(value)):
                     flattened_kvs = []
