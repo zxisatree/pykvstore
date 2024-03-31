@@ -246,7 +246,14 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 )
             )
         return data_types.RespArray(
-            [data_types.RespBulkString(stream_key.encode()), *res]
+            [
+                data_types.RespArray(
+                    [
+                        data_types.RespBulkString(stream_key.encode()),
+                        data_types.RespArray([*res]),
+                    ]
+                )
+            ]
         ).encode()
 
 
