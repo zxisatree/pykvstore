@@ -176,29 +176,26 @@ class WaitCommand(Command):
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> bytes:
         print(f"executing WaitCommand, {replica_handler.is_master=}")
-        if replica_handler.is_master:
-            replica_handler.ack_count = 0
-            for slave in replica_handler.slaves:
-                slave.sendall(
-                    data_types.RespArray(
-                        [
-                            data_types.RespBulkString(b"REPLCONF"),
-                            data_types.RespBulkString(b"GETACK"),
-                            data_types.RespBulkString(b"*"),
-                        ]
-                    ).encode()
-                )
-                # recv from slaves?
-                data = slave.recv(constants.BUFFER_SIZE)
-                replica_handler.ack_count += 1
-                print(f"after sending getack to slave, received {data=}")
+        replica_handler.ack_count = 0
+        for slave in replica_handler.slaves:
+            slave.sendall(
+                data_types.RespArray(
+                    [
+                        data_types.RespBulkString(b"REPLCONF"),
+                        data_types.RespBulkString(b"GETACK"),
+                        data_types.RespBulkString(b"*"),
+                    ]
+                ).encode()
+            )
 
-            end = datetime.now() + self.timeout
-            print(f"Waiting for {self.replica_count} replicas to ack")
-            while (
-                replica_handler.ack_count < self.replica_count and datetime.now() < end
-            ):
-                pass
-            return data_types.RespInteger(replica_handler.ack_count).encode()
-        else:
-            return constants.OK_SIMPLE_STRING.encode()
+        end = datetime.now() + self.timeout
+        while replica_handler.ack_count < self.replica_count and datetime.now() < end:
+            # recv from slaves?
+            data = slave.recv(constants.BUFFER_SIZE)
+            replica_handler.ack_count += 1
+            print(f"after sending getack to slave, received {data=}")
+
+        print(
+            f"{replica_handler.ack_count=}, {datetime.now() - end=} (should be positive)"
+        )
+        return data_types.RespInteger(replica_handler.ack_count).encode()
