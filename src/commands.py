@@ -77,7 +77,8 @@ class GetCommand(Command):
             value = db[self.key.decode()]
             if isinstance(value, str):
                 return data_types.RespBulkString(value.encode()).encode()
-            return data_types.RespBulkString(str(value).encode()).encode()
+            elif isinstance(value, list):
+                return data_types.RespBulkString(str(value).encode()).encode()
         return constants.NULL_BULK_STRING.encode()
 
 
