@@ -187,6 +187,10 @@ class WaitCommand(Command):
                         ]
                     ).encode()
                 )
+                # recv from slaves?
+                data = slave.recv(constants.BUFFER_SIZE)
+                replica_handler.ack_count += 1
+                print(f"after sending getack to slave, received {data=}")
 
             end = datetime.now() + self.timeout
             print(f"Waiting for {self.replica_count} replicas to ack")
