@@ -190,10 +190,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if StreamId(value[i]["id"]) > end_stream_id:
                     hi = i
                     break
+            # print(f"{lo=}, {hi=}. {end_stream_id=}")
             if not hi:
                 hi = len(value) - 1
             res = []
-            for i in range(lo - 1 if lo != 0 else 0, hi + 1):
+            for i in range(lo - 1 if lo != 0 else 0, hi):
                 flattened_kvs = []
                 for k, v in value[i].items():
                     if k == "id":
