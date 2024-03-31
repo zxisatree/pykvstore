@@ -4,6 +4,7 @@ import socket
 import threading
 from datetime import timedelta
 from queue import Queue
+import time
 
 import constants
 import data_types
@@ -176,6 +177,7 @@ class WaitCommand(Command):
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> bytes:
         print(f"executing WaitCommand, {replica_handler.is_master=}")
+        end = datetime.now() + self.timeout
         replica_handler.ack_count = 0
         for slave in replica_handler.slaves:
             print(f"sending to {slave=}")
@@ -188,16 +190,11 @@ class WaitCommand(Command):
                     ]
                 ).encode()
             )
-        end = datetime.now() + self.timeout
-        print(f"finished sending to all slaves, {end-datetime.now()=}")
+        print(f"finished sending to all slaves")
         while replica_handler.ack_count < self.replica_count and datetime.now() < end:
-            # recv from slaves?
-            print(f"recving from {slave=}")
-            data = slave.recv(constants.BUFFER_SIZE)
-            replica_handler.ack_count += 1
-            print(f"after sending getack to slave, received {data=}")
+            pass
 
         print(
-            f"{replica_handler.ack_count=}, {datetime.now() - end=} (should be positive)"
+            f"{replica_handler.ack_count=}, {end - datetime.now()=} (should be positive)"
         )
         return data_types.RespInteger(replica_handler.ack_count).encode()
