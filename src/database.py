@@ -97,14 +97,22 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if not isinstance(cur_value, list):
                 return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
             milliseconds_time, seq_no = id.split("-")
-            if int(milliseconds_time) <= 0 and int(seq_no) <= 0:
+            mst_is_star = milliseconds_time == "*"
+            seq_no_is_star = seq_no == "*"
+            # if mst_is_star and seq_no_is_star:
+            if mst_is_star:  # TODO: change after fixing mst autogeneration
+                return None
+
+            is_0_0 = milliseconds_time == "0" and seq_no == "0"
+            if is_0_0:
                 return constants.STREAM_ID_TOO_SMALL_ERROR.encode()
             if not cur_value:
                 return None
-            print(f"{cur_value[-1]=}")
             last_mst, last_seq_no = cur_value[-1]["id"].split("-")
             if int(milliseconds_time) < int(last_mst):
                 return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+            elif seq_no_is_star:
+                return None
             elif int(milliseconds_time) == int(last_mst) and int(seq_no) <= int(
                 last_seq_no
             ):
