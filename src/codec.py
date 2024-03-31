@@ -131,6 +131,7 @@ def parse_resp_cmd(
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
             print(exception_msg)
             raise Exception(exception_msg)
+        print(f"ConfigGetCommand {key.data=}, {resp_data[2].data=}")
         return commands.ConfigGetCommand(cmd[start:end], key.data)
     else:
         return commands.RdbFileCommand(cmd[start:end])
