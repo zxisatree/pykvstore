@@ -112,6 +112,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return None
 
     def xadd(self, key: str, id: str, value: dict):
+        # stream key has already been validated
         with self.lock:
             if key not in self.store:
                 self.store[key] = []
@@ -119,4 +120,26 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if not isinstance(cur_value, list):
                 print(f"stream key {key} is not a stream")
                 raise Exception(f"stream key {key} is not a stream")
-            cur_value.append({"id": id, **value})
+            processed_id = self.process_stream_id(
+                id, cur_value[-1]["id"] if cur_value else None
+            )
+            cur_value.append({"id": processed_id, **value})
+
+    def process_stream_id(self, id: str, last_id: str | None) -> str:
+        splitted = id.split("-")
+        if len(splitted) != 2:
+            raise Exception(f"Invalid stream id {id}")
+        milliseconds_time, seq_no = splitted
+        if not last_id:
+            if seq_no == "*":
+                seq_no = "1" if milliseconds_time == "0" else "0"
+            return f"{milliseconds_time}-{seq_no}"
+
+        splitted_last = last_id.split("-")
+        last_milliseconds_time, last_seq_no = splitted_last
+        if seq_no == "*":
+            if milliseconds_time == last_milliseconds_time:
+                seq_no = str(int(last_seq_no) + 1)
+            else:
+                seq_no = "1" if milliseconds_time == "0" else "0"
+        return f"{milliseconds_time}-{seq_no}"
