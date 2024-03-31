@@ -119,6 +119,7 @@ def parse_resp_cmd(
             exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
             print(exception_msg)
             raise Exception(exception_msg)
+        print(f"returning WaitCommand")
         return commands.WaitCommand(
             cmd[start:end], int(replica_count.data), int(timeout.data)
         )

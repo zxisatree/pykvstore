@@ -175,6 +175,7 @@ class WaitCommand(Command):
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> bytes:
+        print(f"executing WaitCommand, {replica_handler.is_master=}")
         if replica_handler.is_master:
             replica_handler.ack_count = 0
             for slave in replica_handler.slaves:
