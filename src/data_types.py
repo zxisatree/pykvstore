@@ -114,7 +114,7 @@ class RespBulkString(RespDataType):
         return (
             f"${len(self.data)}\r\n".encode() + self.data + b"\r\n"
             if self.data
-            else constants.NULL_BULK_STRING.encode()
+            else constants.NULL_BULK_RESP_STRING.encode()
         )
 
     @staticmethod

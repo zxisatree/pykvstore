@@ -64,7 +64,7 @@ class SetCommand(Command):
     ) -> bytes:
         replica_handler.propogate(self._raw_cmd)
         db[self.key.decode()] = (self.value.decode(), self.expiry)
-        return constants.OK_SIMPLE_STRING.encode()
+        return constants.OK_SIMPLE_RESP_STRING.encode()
 
 
 class GetCommand(Command):
@@ -79,7 +79,7 @@ class GetCommand(Command):
                 return data_types.RespBulkString(value.encode()).encode()
             elif isinstance(value, list):
                 return data_types.RespBulkString(str(value).encode()).encode()
-        return constants.NULL_BULK_STRING.encode()
+        return constants.NULL_BULK_RESP_STRING.encode()
 
 
 class CommandCommand(Command):
@@ -88,7 +88,7 @@ class CommandCommand(Command):
         self._raw_cmd = raw_cmd
 
     def execute(self, db, replica_handler, conn) -> bytes:
-        return constants.OK_SIMPLE_STRING.encode()
+        return constants.OK_SIMPLE_RESP_STRING.encode()
 
 
 class InfoCommand(Command):
@@ -104,7 +104,7 @@ class ReplConfCommand(Command):
         self._raw_cmd = raw_cmd
 
     def execute(self, db, replica_handler, conn) -> bytes:
-        return constants.OK_SIMPLE_STRING.encode()
+        return constants.OK_SIMPLE_RESP_STRING.encode()
 
 
 class ReplConfAckCommand(Command):
@@ -191,7 +191,7 @@ class ConfigGetCommand(Command):
                     data_types.RespBulkString(db.dbfilename.encode()),
                 ]
             ).encode()
-        return constants.OK_SIMPLE_STRING.encode()
+        return constants.OK_SIMPLE_RESP_STRING.encode()
 
 
 class KeysCommand(Command):
