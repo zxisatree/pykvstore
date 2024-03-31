@@ -191,7 +191,7 @@ def parse_resp_cmd(
             key_id_start_idx = 4
         remaining_len = len(resp_data) - key_id_start_idx
         # TODO: fix type checking
-        keys = list(map(lambda x: x.data.decode(), resp_data.elements[key_id_start_idx : 2 + remaining_len // 2]))  # type: ignore
+        keys = list(map(lambda x: x.data.decode(), resp_data.elements[key_id_start_idx : key_id_start_idx + remaining_len // 2]))  # type: ignore
         ids = list(map(lambda x: x.data.decode(), resp_data.elements[key_id_start_idx + remaining_len // 2 :]))  # type: ignore
         if is_block:
             return commands.XreadCommand(
