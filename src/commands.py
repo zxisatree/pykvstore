@@ -295,5 +295,7 @@ class XaddCommand(Command):
                 raise Exception(f"Invalid stream entry value {stream_value}")
             kv_dict[stream_key.data.decode()] = stream_value.data.decode()
         print(f"{stream_entry_id=}, {kv_dict=}")
-        db.xadd(self.stream_key.decode(), stream_entry_id.decode(), kv_dict)
-        return data_types.RespSimpleString(stream_entry_id).encode()
+        processed_stream_id = db.xadd(
+            self.stream_key.decode(), stream_entry_id.decode(), kv_dict
+        )
+        return data_types.RespSimpleString(processed_stream_id.encode()).encode()

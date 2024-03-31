@@ -111,7 +111,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
             return None
 
-    def xadd(self, key: str, id: str, value: dict):
+    def xadd(self, key: str, id: str, value: dict) -> str:
         # stream key has already been validated
         with self.lock:
             if key not in self.store:
@@ -123,7 +123,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             processed_id = self.process_stream_id(
                 id, cur_value[-1]["id"] if cur_value else None
             )
+            print(f"got {processed_id=}")
             cur_value.append({"id": processed_id, **value})
+            return processed_id
 
     def process_stream_id(self, id: str, last_id: str | None) -> str:
         splitted = id.split("-")
