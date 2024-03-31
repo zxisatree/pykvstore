@@ -14,6 +14,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.dir = dir
         self.dbfilename = dbfilename
         file_path = os.path.join(self.dir, self.dbfilename)
+        print(f"{os.path.exists(file_path)=}")
         if os.path.exists(file_path):
             with open(file_path, "rb") as f:
                 self.rdb = rdb.RdbFile(f.read())
