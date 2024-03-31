@@ -178,6 +178,7 @@ class WaitCommand(Command):
         print(f"executing WaitCommand, {replica_handler.is_master=}")
         replica_handler.ack_count = 0
         for slave in replica_handler.slaves:
+            print(f"sending to {slave=}")
             slave.sendall(
                 data_types.RespArray(
                     [
@@ -187,10 +188,11 @@ class WaitCommand(Command):
                     ]
                 ).encode()
             )
-
         end = datetime.now() + self.timeout
+        print(f"finished sending to all slaves, {end-datetime.now()=}")
         while replica_handler.ack_count < self.replica_count and datetime.now() < end:
             # recv from slaves?
+            print(f"recving from {slave=}")
             data = slave.recv(constants.BUFFER_SIZE)
             replica_handler.ack_count += 1
             print(f"after sending getack to slave, received {data=}")
