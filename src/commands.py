@@ -112,7 +112,7 @@ class ReplConfAckCommand(Command):
             f"incrementing {replica_handler.ack_count=} to {replica_handler.ack_count + 1}"
         )
         replica_handler.ack_count += 1
-        return constants.OK_SIMPLE_STRING.encode()
+        return b""
 
 
 class ReplConfGetAckCommand(Command):
