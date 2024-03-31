@@ -146,6 +146,15 @@ def parse_resp_cmd(
             print(exception_msg)
             raise Exception(exception_msg)
         return commands.TypeCommand(cmd[start:end], key.data)
+    elif cmd_str == b"XADD":
+        stream_key = resp_data[1]
+        if not isinstance(stream_key, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        return commands.XaddCommand(
+            cmd[start:end], stream_key.data, resp_data.elements[2:]
+        )
     else:
         return commands.RdbFileCommand(cmd[start:end])
         # exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"

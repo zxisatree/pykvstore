@@ -8,7 +8,7 @@ import rdb
 
 class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
-    store: dict[str, tuple[str, datetime | None]] = {}
+    store: dict[str, tuple[str, datetime | None] | list[dict]] = {}
 
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir
@@ -27,13 +27,16 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         with self.lock:
             return len(self.store)
 
-    def __getitem__(self, key: str) -> str:
+    def __getitem__(self, key: str) -> str | list[dict] | None:
         with self.lock:
             if key not in self.store:
-                return ""
-            if self.store[key][1] and self.expire_one(key):
-                return ""
-            return self.store[key][0]
+                return None
+            value = self.store[key]
+            if isinstance(value, list):
+                return value
+            if value[1] and self.expire_one(key):
+                return None
+            return value[0]
 
     def __setitem__(self, key: str, value: tuple[str, datetime | None]):
         with self.lock:
@@ -55,18 +58,42 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         with self.lock:
             return f"Store({repr(self.store)})"
 
+    def get_type(self, key: str) -> str:
+        with self.lock:
+            if key not in self.store:
+                return "none"
+            value = self.store[key]
+            if isinstance(value, list):
+                return "stream"
+            return "string"
+
     def expire(self):
         with self.lock:
-            for key, (_, expiry) in self.store.items():
-                if expiry and expiry < datetime.now():
-                    del self.store[key]
+            for key, value in self.store.items():
+                if not isinstance(value, list):
+                    _, expiry = value
+                    if expiry and expiry < datetime.now():
+                        del self.store[key]
 
     def expire_one(self, key: str) -> bool:
         # returns True if key was expired
         with self.lock:
-            expiry = self.store[key][1]
+            value = self.store[key]
+            if isinstance(value, list):
+                return False
+            expiry = value[1]
             print(f"{expiry=}, {datetime.now()=}")
             if expiry and expiry < datetime.now():
                 del self.store[key]
                 return True
             return False
+
+    def xadd(self, key: str, id: str, value: dict):
+        with self.lock:
+            if key not in self.store:
+                self.store[key] = []
+            cur_value = self.store[key]
+            if not isinstance(cur_value, list):
+                print(f"stream key {key} is not a stream")
+                raise Exception(f"stream key {key} is not a stream")
+            cur_value.append({id: id, **value})

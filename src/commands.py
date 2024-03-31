@@ -74,7 +74,10 @@ class GetCommand(Command):
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
         if self.key.decode() in db:
-            return data_types.RespBulkString(db[self.key.decode()].encode()).encode()
+            value = db[self.key.decode()]
+            if isinstance(value, str):
+                return data_types.RespBulkString(value.encode()).encode()
+            return data_types.RespBulkString(str(value).encode()).encode()
         return constants.NULL_BULK_STRING.encode()
 
 
@@ -252,5 +255,40 @@ class TypeCommand(Command):
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
         if self.key.decode() in db:
-            return data_types.RespSimpleString(b"string").encode()
+            return data_types.RespSimpleString(
+                db.get_type(self.key.decode()).encode()
+            ).encode()
         return data_types.RespSimpleString(b"none").encode()
+
+
+class XaddCommand(Command):
+    def __init__(
+        self, raw_cmd: bytes, stream_key: bytes, data: list[data_types.RespDataType]
+    ):
+        self._raw_cmd = raw_cmd
+        self.stream_key = stream_key
+        self.data = data
+
+    def execute(
+        self,
+        db: database.Database,
+        replica_handler,
+        conn,
+    ) -> bytes:
+        print(f"executing XaddCommand, {self.stream_key=}, {self.data=}")
+        raw_stream_entry_id = self.data[0]
+        if not isinstance(raw_stream_entry_id, data_types.RespBulkString):
+            raise Exception(f"Invalid stream entry id {raw_stream_entry_id}")
+        stream_entry_id = raw_stream_entry_id.data
+        kv_dict = {}
+        for i in range(1, len(self.data), 2):
+            stream_key = self.data[i]
+            stream_value = self.data[i + 1]
+            if not isinstance(stream_key, data_types.RespBulkString):
+                raise Exception(f"Invalid stream entry field {stream_key}")
+            if not isinstance(stream_value, data_types.RespBulkString):
+                raise Exception(f"Invalid stream entry value {stream_value}")
+            kv_dict[stream_key.data.decode()] = stream_value.data.decode()
+        print(f"{stream_entry_id=}, {kv_dict=}")
+        db.xadd(self.stream_key.decode(), stream_entry_id.decode(), kv_dict)
+        return data_types.RespSimpleString(stream_entry_id).encode()
