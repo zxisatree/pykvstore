@@ -171,7 +171,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             value = self.store[key]
             if not isinstance(value, list):
                 return constants.XRANGE_ON_NON_STREAM_ERROR.encode()
-            if "-" not in start:
+            if start == "-":
+                start = "0-1"
+            elif "-" not in start:
                 start = f"{start}-0"
             if "-" not in end:
                 end = f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}"
