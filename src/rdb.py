@@ -5,8 +5,8 @@ class RdbFile:
 
     def read_rdb(self):
         sanity_check = self.data[0:5]
-        if sanity_check != b"REDIS":
-            raise Exception("Invalid RDB file")
+        # if sanity_check != b"REDIS":
+        #     raise Exception("Invalid RDB file")
         # version_number = int.from_bytes(data[5:9], byteorder="little")
         while self.idx <= len(self.data):
             self.parse()

@@ -13,8 +13,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir
         self.dbfilename = dbfilename
-        with open(os.path.join(self.dir, self.dbfilename), "rb") as f:
-            self.rdb = rdb.RdbFile(f.read())
+        file_path = os.path.join(self.dir, self.dbfilename)
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                self.rdb = rdb.RdbFile(f.read())
+        else:
+            self.rdb = rdb.RdbFile(b"")
 
     def __len__(self) -> int:
         with self.lock:
