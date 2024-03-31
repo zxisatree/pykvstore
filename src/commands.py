@@ -299,3 +299,15 @@ class XaddCommand(Command):
             self.stream_key.decode(), stream_entry_id.decode(), kv_dict
         )
         return data_types.RespSimpleString(processed_stream_id.encode()).encode()
+
+
+class XrangeCommand(Command):
+    def __init__(self, raw_cmd: bytes, key: bytes, start: str, end: str):
+        self._raw_cmd = raw_cmd
+        self.key = key
+        self.start = start
+        self.end = end
+
+    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+        print(f"executing XrangeCommand, {self.key=}, {self.start=}, {self.end=}")
+        return db.xrange(self.key.decode(), self.start, self.end)

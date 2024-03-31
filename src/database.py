@@ -3,13 +3,14 @@ from threading import RLock
 import os
 
 import constants
+import data_types
 import rdb
 import singleton_meta
 
 
 class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
-    store: dict[str, tuple[str, datetime | None] | list[dict]] = {}
+    store: dict[str, tuple[str, datetime | None] | list[dict[str, str]]] = {}
 
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir
@@ -163,3 +164,39 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             else:
                 seq_no = "1" if milliseconds_time == "0" else "0"
         return f"{milliseconds_time}-{seq_no}"
+
+    def xrange(self, key: str, start: str, end: str) -> bytes:
+        with self.lock:
+            value = self.store[key]
+            if not isinstance(value, list):
+                return constants.XRANGE_ON_NON_STREAM_ERROR.encode()
+            lo, hi = None, None
+            for i in range(len(value)):
+                if value[i]["id"].split("-")[0] > start:
+                    lo = i
+                    break
+            if not lo:
+                return b""
+            for i in range(lo, len(value)):
+                if value[i]["id"].split("-")[0] > end:
+                    hi = i
+                    break
+            if not hi:
+                hi = len(value) - 1
+            res = []
+            for i in range(lo - 1 if lo != 0 else 0, hi + 1):
+                flattened_kvs = []
+                for k, v in value[i].items():
+                    if k == "id":
+                        continue
+                    flattened_kvs.append(data_types.RespBulkString(k.encode()))
+                    flattened_kvs.append(data_types.RespBulkString(v.encode()))
+                res.append(
+                    data_types.RespArray(
+                        [
+                            data_types.RespBulkString(value[i]["id"].encode()),
+                            data_types.RespArray(flattened_kvs),
+                        ]
+                    )
+                )
+            return data_types.RespArray(res).encode()

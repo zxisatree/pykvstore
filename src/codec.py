@@ -155,6 +155,28 @@ def parse_resp_cmd(
         return commands.XaddCommand(
             cmd[start:end], stream_key.data, resp_data.elements[2:]
         )
+    elif cmd_str == b"XRANGE":
+        key = resp_data[1]
+        if not isinstance(key, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        xrange_start = resp_data[2]
+        if not isinstance(xrange_start, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        xrange_end = resp_data[3]
+        if not isinstance(xrange_end, data_types.RespBulkString):
+            exception_msg = f"Unsupported command (fourth element is not bulk string) {resp_data[3]}, {type(resp_data[3])}"
+            print(exception_msg)
+            raise Exception(exception_msg)
+        return commands.XrangeCommand(
+            cmd[start:end],
+            key.data,
+            xrange_start.data.decode(),
+            xrange_end.data.decode(),
+        )
     else:
         return commands.RdbFileCommand(cmd[start:end])
         # exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"

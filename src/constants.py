@@ -7,3 +7,4 @@ STREAM_ID_NOT_GREATER_ERROR = (
     "ERR The ID specified in XADD is equal or smaller than the target stream top item"
 )
 STREAM_ID_TOO_SMALL_ERROR = "ERR The ID specified in XADD must be greater than 0-0"
+XRANGE_ON_NON_STREAM_ERROR = "ERR The key provided does not refer to a stream"
