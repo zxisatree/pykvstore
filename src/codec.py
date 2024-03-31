@@ -195,7 +195,7 @@ def parse_resp_cmd(
         ids = list(map(lambda x: x.data.decode(), resp_data.elements[key_id_start_idx + remaining_len // 2 :]))  # type: ignore
         if is_block:
             return commands.XreadCommand(
-                cmd[start:end], keys, ids, int(resp_data[3].data.decode())  # type: ignore
+                cmd[start:end], keys, ids, int(resp_data[2].data.decode())  # type: ignore
             )
         else:
             return commands.XreadCommand(cmd[start:end], keys, ids)
