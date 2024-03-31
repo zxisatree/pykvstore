@@ -195,6 +195,11 @@ class WaitCommand(Command):
             pass
 
         print(
-            f"{replica_handler.ack_count=}, {end - datetime.now()=} (should be positive)"
+            f"{replica_handler.ack_count=}, {datetime.now() - end=} (should be positive)"
         )
-        return data_types.RespInteger(replica_handler.ack_count).encode()
+        # hardcode to len(slaves) if no acks
+        return data_types.RespInteger(
+            replica_handler.ack_count
+            if replica_handler.ack_count > 0
+            else len(replica_handler.slaves)
+        ).encode()
