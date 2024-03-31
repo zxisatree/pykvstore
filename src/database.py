@@ -258,11 +258,14 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 stream_id = StreamId(id)
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
-                print(f"{stream_key=}, {id=}, {range_start=}, {len(value)=}, {value=}")
+                print(
+                    f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {value=}"
+                )
                 for i in range(range_start, len(value)):
                     if StreamId(value[i]["id"]) > stream_id:
                         lo = i
                         break
+                print(f"{lo=}, {list(map(lambda x: x['id'], value[range_start:]))=}")
                 if lo is None:
                     return constants.NULL_BULK_RESP_STRING.encode()
                 inter: list[data_types.RespDataType] = []
