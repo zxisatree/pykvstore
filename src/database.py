@@ -254,7 +254,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if not isinstance(value, list):
                     return constants.XOP_ON_NON_STREAM_ERROR.encode()
                 if id == "$":
-                    id = value[original_lens[i]]["id"] if value else "0-0"
+                    id = value[original_lens[i - 1]]["id"] if value else "0-0"
                 stream_id = StreamId(id)
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
