@@ -25,7 +25,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             with open(file_path, "rb") as f:
                 self.rdb = rdb.RdbFile(f.read())
         else:
-            self.rdb = rdb.RdbFile(b"")
+            self.rdb = rdb.RdbFile(constants.EMPTY_RDB_FILE)
         for key, value in self.rdb.key_values.items():
             self.store[key] = value
         logger.info(f"db initialised with {self.store=}")
@@ -267,9 +267,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     if value[i][0] > stream_id:
                         lo = i
                         break
-                logger.info(
-                    f"{lo=}, {list(map(lambda x: x[0], value[range_start:]))=}"
-                )
+                logger.info(f"{lo=}, {list(map(lambda x: x[0], value[range_start:]))=}")
                 if lo is None:
                     return constants.NULL_BULK_RESP_STRING.encode()
                 inter: list[data_types.RespDataType] = []

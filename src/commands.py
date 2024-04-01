@@ -27,6 +27,14 @@ class Command(ABC):
     ) -> bytes | list[bytes]: ...
 
 
+class NoOp(Command):
+    def __init__(self, raw_cmd: bytes):
+        self._raw_cmd = raw_cmd
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        return data_types.RespSimpleError(constants.NO_OP_RESPONSE.encode()).encode()
+
+
 class PingCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
@@ -63,6 +71,13 @@ class SetCommand(Command):
         replica_handler.propogate(self._raw_cmd)
         db[self.key.decode()] = (self.value.decode(), self.expiry)
         return constants.OK_SIMPLE_RESP_STRING.encode()
+
+    @staticmethod
+    def validate_px(px_cmd: data_types.RespBulkString):
+        if px_cmd.data.upper() != b"PX":
+            raise Exception(
+                f"Unsupported SET command (fourth element is not 'PX') {px_cmd.data}"
+            )
 
 
 class GetCommand(Command):
@@ -160,7 +175,7 @@ class FullResyncCommand(Command):
 
 class RdbFileCommand(Command):
     def __init__(self, data: bytes) -> None:
-        self.data = data
+        self.rdbfile = data_types.RdbFile(data)
         self._raw_cmd = data
 
     # slave received a RDB file

@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from base64 import b64decode
 
 import codec
 import constants
+import exceptions
 from logs import logger
+import rdb
 
 
 class RespDataType(ABC):
@@ -54,7 +55,9 @@ class RespSimpleString(RespDataType):
     @staticmethod
     def validate(that) -> "RespSimpleString":
         if not isinstance(that, RespSimpleString):
-            raise Exception(f"Expected RespSimpleString, got {type(that)}")
+            raise exceptions.ValidationError(
+                f"Expected RespSimpleString, got {type(that)}"
+            )
         return that
 
 
@@ -109,7 +112,7 @@ class RespArray(RespDataType):
     @staticmethod
     def validate(that) -> "RespArray":
         if not isinstance(that, RespArray):
-            raise Exception(f"Expected RespArray, got {type(that)}")
+            raise exceptions.ValidationError(f"Expected RespArray, got {type(that)}")
         return that
 
 
@@ -151,7 +154,9 @@ class RespBulkString(RespDataType):
     @staticmethod
     def validate(that) -> "RespBulkString":
         if not isinstance(that, RespBulkString):
-            raise Exception(f"Expected RespBulkString, got {type(that)}")
+            raise exceptions.ValidationError(
+                f"Expected RespBulkString, got {type(that)}"
+            )
         return that
 
 
@@ -186,7 +191,7 @@ class RespInteger(RespDataType):
     @staticmethod
     def validate(that) -> "RespInteger":
         if not isinstance(that, RespInteger):
-            raise Exception(f"Expected RespInteger, got {type(that)}")
+            raise exceptions.ValidationError(f"Expected RespInteger, got {type(that)}")
         return that
 
 
@@ -221,15 +226,16 @@ class RespSimpleError(RespDataType):
     @staticmethod
     def validate(that) -> "RespSimpleError":
         if not isinstance(that, RespSimpleError):
-            raise Exception(f"Expected RespSimpleError, got {type(that)}")
+            raise exceptions.ValidationError(
+                f"Expected RespSimpleError, got {type(that)}"
+            )
         return that
 
 
 class RdbFile(RespDataType):
     def __init__(self, data: bytes):
-        self.data = b64decode(
-            "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
-        )
+        """Throws an exception if file is invalid"""
+        self.data = rdb.RdbFile(data)
 
     def __len__(self) -> int:
         return len(self.data)
@@ -241,7 +247,7 @@ class RdbFile(RespDataType):
         return f"RdbFile({repr(self.data)})"
 
     def encode(self) -> bytes:
-        return f"${len(self.data)}\r\n".encode() + self.data
+        return f"${len(self.data)}\r\n".encode() + self.data.data
 
     @staticmethod
     def decode(data: bytes, pos: int) -> tuple["RdbFile", int]:
@@ -261,7 +267,7 @@ class RdbFile(RespDataType):
     @staticmethod
     def validate(that) -> "RdbFile":
         if not isinstance(that, RdbFile):
-            raise Exception(f"Expected RdbFile, got {type(that)}")
+            raise exceptions.ValidationError(f"Expected RdbFile, got {type(that)}")
         return that
 
 

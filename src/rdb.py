@@ -6,17 +6,24 @@ from logs import logger
 class RdbFile:
     def __init__(self, data: bytes):
         self.data = data
-        logger.info(f"{data=}")
         self.idx = 9  # ignore magic string and version number
         self.buffer = []
         self.key_values: dict[str, tuple[str, datetime.datetime | None]] = {}
         self.read_rdb()
 
+    def __len__(self) -> int:
+        return len(self.data)
+
     def read_rdb(self):
         sanity_check = self.data[0:5]
-        # if sanity_check != b"REDIS":
-        #     raise Exception("Invalid RDB file")
-        # version_number = int.from_bytes(data[5:9], byteorder="little")
+        if sanity_check != b"REDIS":
+            raise Exception(
+                f"Invalid RDB file, magic bytes are not REDIS: {sanity_check}"
+            )
+        try:
+            version_number = int.from_bytes(self.data[5:9], byteorder="little")
+        except:
+            raise Exception(f"Invalid RDB file, got version number {self.data[5:9]}")
         while self.idx < len(self.data):
             self.parse()
 
