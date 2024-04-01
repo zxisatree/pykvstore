@@ -29,12 +29,10 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             self.master_ip = replica_of[0]
             self.master_port = replica_of[1]
         self.slaves: list[socket.socket] = []
-        self.info = {
-            "role": "master" if is_master else "slave",
-            "connected_slaves": len(self.slaves),
-            "master_replid": self.id if is_master else "?",
-            "master_repl_offset": 0,
-        }
+        self.connected_slaves = 0
+        self.role = "master" if is_master else "slave"
+        self.master_replid = self.id if is_master else "?"
+        self.master_repl_offset = 0
         # attempt to connect to master
         if not is_master:
             threading.Thread(target=self.connect_to_master, args=(db,)).start()
@@ -83,7 +81,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             data_types.RespArray(
                 [
                     data_types.RespBulkString(b"PSYNC"),
-                    data_types.RespBulkString(str(self.info["master_replid"]).encode()),
+                    data_types.RespBulkString(self.master_replid.encode()),
                     data_types.RespBulkString(str(-1).encode()),
                 ]
             ).encode()
@@ -109,13 +107,13 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                         )
                     else:
                         # need to update offset based on cmd in list, not based on full data
-                        self.info["master_repl_offset"] += len(cmd.raw_cmd)
+                        self.master_repl_offset += len(cmd.raw_cmd)
             else:
                 self.respond_to_master(cmds, db)
                 if handshake_step != 2:
                     handshake_step = self.handle_handshake_psync(handshake_step, cmd)
                 else:
-                    self.info["master_repl_offset"] += len(cmd.raw_cmd)
+                    self.master_repl_offset += len(cmd.raw_cmd)
 
     def handle_handshake_psync(
         self, handshake_step: int, cmd: "commands.Command"
@@ -136,19 +134,29 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             if isinstance(executed, bytes):  # impossible to get list here
                 self.master_conn.sendall(executed)
 
+    def add_slave(self, slave: socket.socket):
+        self.slaves.append(slave)
+        self.connected_slaves += 1
+
     def propogate(self, raw_cmd: bytes):
         for slave in self.slaves:
             slave.sendall(raw_cmd)
 
     def get_info(self) -> bytes:
         # encode each kv as a RespBulkString
+        info = {
+            "role": self.role,
+            "connected_slaves": self.connected_slaves,
+            "master_replid": self.master_replid,
+            "master_repl_offset": self.master_repl_offset,
+        }
         return data_types.RespBulkString(
             b"".join(
                 map(
                     lambda item: data_types.RespBulkString(
                         f"{item[0]}:{item[1]}".encode()
                     ).encode(),
-                    self.info.items(),
+                    info.items(),
                 )
             )
         ).encode()

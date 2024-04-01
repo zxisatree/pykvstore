@@ -127,7 +127,7 @@ class ReplConfGetAckCommand(Command):
                 data_types.RespBulkString(b"REPLCONF"),
                 data_types.RespBulkString(b"ACK"),
                 data_types.RespBulkString(
-                    str(replica_handler.info["master_repl_offset"]).encode()
+                    str(replica_handler.master_repl_offset).encode()
                 ),
             ]
         ).encode()
@@ -140,10 +140,10 @@ class PsyncCommand(Command):
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> list[bytes]:
-        replica_handler.slaves.append(conn)
+        replica_handler.add_slave(conn)
         return [
             data_types.RespSimpleString(
-                f"FULLRESYNC {replica_handler.ip} {replica_handler.info['master_repl_offset']}".encode()
+                f"FULLRESYNC {replica_handler.ip} {replica_handler.master_repl_offset}".encode()
             ).encode(),
             data_types.RdbFile(b"").encode(),
         ]
