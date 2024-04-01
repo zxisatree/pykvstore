@@ -2,16 +2,19 @@ from datetime import datetime, timedelta
 
 import commands
 import data_types
+import logs
+
+logger = logs.setup_logger()
+logger.setLevel("INFO")
 
 
-# *2\r\n$4\r\necho\r\n$3\r\nhey\r\n = ["echo", "hey"] encoded using the Redis protocol
-def parse_cmd(cmd: bytes) -> commands.Command | list[commands.Command]:
+def parse_cmd(cmd: bytes) -> list[commands.Command]:
     final_cmds: list[commands.Command] = []
     pos = 0
     while pos < len(cmd):
         orig = pos
         resp_data, pos = parse(cmd, pos)
-        print(f"Codec.parse {resp_data=}, {pos=}")
+        logger.info(f"Codec.parse {resp_data=}, {pos=}")
         if isinstance(resp_data, data_types.RespArray):
             final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
         elif isinstance(resp_data, data_types.RespSimpleString):
@@ -20,11 +23,9 @@ def parse_cmd(cmd: bytes) -> commands.Command | list[commands.Command]:
         elif isinstance(resp_data, data_types.RdbFile):
             final_cmds.append(commands.RdbFileCommand(resp_data.data))
         else:
-            exception_msg = (
+            raise Exception(
                 f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
             )
-            print(f"Raising exception: {exception_msg}")
-            raise Exception(exception_msg)
     return final_cmds
 
 
@@ -34,7 +35,7 @@ def parse_resp_cmd(
     cmd_resp = resp_data[0]
     if not isinstance(cmd_resp, data_types.RespBulkString):
         exception_msg = f"Unsupported command (first element is not bulk string) {resp_data[0]}, {type(resp_data[0])}"
-        print(exception_msg)
+        logger.info(exception_msg)
         raise Exception(exception_msg)
     cmd_str = cmd_resp.data.upper()
     if cmd_str == b"PING":
@@ -43,7 +44,7 @@ def parse_resp_cmd(
         msg = resp_data[1]
         if not isinstance(msg, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.EchoCommand(cmd[start:end], msg)
     elif cmd_str == b"SET":
@@ -51,11 +52,11 @@ def parse_resp_cmd(
         value = resp_data[2]
         if not isinstance(key, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         if not isinstance(value, data_types.RespBulkString):
             exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         if len(resp_data) <= 3:
             return commands.SetCommand(cmd[start:end], key, value, None)
@@ -64,15 +65,15 @@ def parse_resp_cmd(
         expiry = resp_data[4]
         if not isinstance(px_cmd, data_types.RespBulkString):
             exception_msg = f"Unsupported command (fourth element is not bulk string) {resp_data[3]}, {type(resp_data[3])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         if px_cmd.data.upper() != b"PX":
             exception_msg = f"Unsupported command (fourth element is not 'PX') {resp_data[3]}, {type(resp_data[3])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         if not isinstance(expiry, data_types.RespBulkString):
             exception_msg = f"Unsupported command (fifth element is not bulk string) {resp_data[4]}, {type(resp_data[4])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.SetCommand(
             cmd[start:end],
@@ -84,7 +85,7 @@ def parse_resp_cmd(
         key = resp_data[1]
         if not isinstance(key, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.GetCommand(cmd[start:end], key)
     elif cmd_str == b"COMMAND":
@@ -97,29 +98,29 @@ def parse_resp_cmd(
             cmd_str2 = resp_data[1]
             if not isinstance(cmd_str2, data_types.RespBulkString):
                 exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-                print(exception_msg)
+                logger.info(exception_msg)
                 raise Exception(exception_msg)
             if cmd_str2.data.upper() == b"GETACK":
-                print(f"parse_cmd got ReplConfGetAckCommand")
+                logger.info(f"parse_cmd got ReplConfGetAckCommand")
                 return commands.ReplConfGetAckCommand(cmd[start:end])
             elif cmd_str2.data.upper() == b"ACK":
-                print(f"parse_cmd got ReplConfAckCommand")
+                logger.info(f"parse_cmd got ReplConfAckCommand")
                 return commands.ReplConfAckCommand(cmd[start:end])
             return commands.ReplConfCommand(cmd[start:end])
-        print(f"parse_cmd got ReplConfCommand")
+        logger.info(f"parse_cmd got ReplConfCommand")
         return commands.ReplConfCommand(cmd[start:end])
     elif cmd_str == b"WAIT":
         replica_count = resp_data[1]
         timeout = resp_data[2]
         if not isinstance(replica_count, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         if not isinstance(timeout, data_types.RespBulkString):
             exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
-        print(f"returning WaitCommand")
+        logger.info(f"returning WaitCommand")
         return commands.WaitCommand(
             cmd[start:end], int(replica_count.data), int(timeout.data)
         )
@@ -129,28 +130,28 @@ def parse_resp_cmd(
         key = resp_data[2]
         if not isinstance(key, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.ConfigGetCommand(cmd[start:end], key.data)
     elif cmd_str == b"KEYS":
         pattern = resp_data[1]
         if not isinstance(pattern, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.KeysCommand(cmd[start:end], pattern.data)
     elif cmd_str == b"TYPE":
         key = resp_data[1]
         if not isinstance(key, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.TypeCommand(cmd[start:end], key.data)
     elif cmd_str == b"XADD":
         stream_key = resp_data[1]
         if not isinstance(stream_key, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.XaddCommand(
             cmd[start:end], stream_key.data, resp_data.elements[2:]
@@ -159,17 +160,17 @@ def parse_resp_cmd(
         key = resp_data[1]
         if not isinstance(key, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         xrange_start = resp_data[2]
         if not isinstance(xrange_start, data_types.RespBulkString):
             exception_msg = f"Unsupported command (third element is not bulk string) {resp_data[2]}, {type(resp_data[2])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         xrange_end = resp_data[3]
         if not isinstance(xrange_end, data_types.RespBulkString):
             exception_msg = f"Unsupported command (fourth element is not bulk string) {resp_data[3]}, {type(resp_data[3])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         return commands.XrangeCommand(
             cmd[start:end],
@@ -182,7 +183,7 @@ def parse_resp_cmd(
         streams = resp_data[1]
         if not isinstance(streams, data_types.RespBulkString):
             exception_msg = f"Unsupported command (second element is not bulk string) {resp_data[1]}, {type(resp_data[1])}"
-            print(exception_msg)
+            logger.info(exception_msg)
             raise Exception(exception_msg)
         key_id_start_idx = 2
         is_block = False
@@ -202,7 +203,7 @@ def parse_resp_cmd(
     else:
         return commands.RdbFileCommand(cmd[start:end])
         # exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
-        # print(exception_msg)
+        # logger.info(exception_msg)
         # raise Exception(exception_msg)
 
 
@@ -216,7 +217,7 @@ def parse(cmd: bytes, pos: int) -> tuple[data_types.RespDataType, int]:
     elif data_type == b"+":
         return data_types.RespSimpleString.decode(cmd, pos)
     else:
-        print(f"Raising exception: Unsupported data type {data_type}")
+        logger.info(f"Raising exception: Unsupported data type {data_type}")
         raise Exception(f"Unsupported data type {data_type}")
 
 

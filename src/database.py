@@ -6,9 +6,12 @@ import os
 
 import constants
 import data_types
+import logs
 import rdb
 import singleton_meta
 
+logger = logs.setup_logger()
+logger.setLevel("INFO")
 
 class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
@@ -25,7 +28,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             self.rdb = rdb.RdbFile(b"")
         for key, value in self.rdb.key_values.items():
             self.store[key] = value
-        print(f"db initialised with {self.store=}")
+        logger.info(f"db initialised with {self.store=}")
 
     def __len__(self) -> int:
         with self.lock:
@@ -86,7 +89,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if isinstance(value, list):
                 return False
             expiry = value[1]
-            print(f"{expiry=}, {datetime.now()=}")
+            logger.info(f"{expiry=}, {datetime.now()=}")
             if expiry and expiry < datetime.now():
                 del self.store[key]
                 return True
@@ -127,12 +130,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 self.store[key] = []
             cur_value = self.store[key]
             if not isinstance(cur_value, list):
-                print(f"stream key {key} is not a stream")
+                logger.info(f"stream key {key} is not a stream")
                 raise Exception(f"stream key {key} is not a stream")
             processed_id = self.process_stream_id(
                 id, cur_value[-1]["id"] if cur_value else None
             )
-            print(f"got {processed_id=}")
+            logger.info(f"got {processed_id=}")
             cur_value.append({"id": processed_id, **value})
             return processed_id
 
@@ -158,8 +161,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
         splitted_last = last_id.split("-")
         last_milliseconds_time, last_seq_no = splitted_last
-        print(f"{milliseconds_time=}, {last_milliseconds_time=}")
-        print(f"{seq_no=}, {last_seq_no=}")
+        logger.info(f"{milliseconds_time=}, {last_milliseconds_time=}")
+        logger.info(f"{seq_no=}, {last_seq_no=}")
         if seq_no == "*":
             if milliseconds_time == last_milliseconds_time:
                 seq_no = str(int(last_seq_no) + 1)
@@ -197,7 +200,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if StreamId(value[i]["id"]) > end_stream_id:
                     hi = i
                     break
-            # print(f"{lo=}, {hi=}. {end_stream_id=}")
+            # logger.info(f"{lo=}, {hi=}. {end_stream_id=}")
             if hi is None:
                 hi = len(value)
             res = []
@@ -226,10 +229,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 original_lens = [
                     len(self.store[stream_key]) for stream_key in stream_keys
                 ]
-            print(f"{original_lens=}")
+            logger.info(f"{original_lens=}")
             if timeout != 0:
                 time.sleep(timeout / 1e3)
-                print(f"timeout complete")
+                logger.info(f"timeout complete")
             else:
                 while True:
                     time.sleep(0.5)
@@ -242,7 +245,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                             if new_lens[i] != original_lens[i]:
                                 to_break = True
                         if to_break:
-                            print(f"{new_lens=}")
+                            logger.info(f"{new_lens=}")
                             break
 
         with self.lock:
@@ -254,19 +257,19 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if not isinstance(value, list):
                     return constants.XOP_ON_NON_STREAM_ERROR.encode()
                 if id == "$":
-                    print(f"{original_lens[i]}")
+                    logger.info(f"{original_lens[i]}")
                     id = value[original_lens[i] - 1]["id"] if value else "0-0"
                 stream_id = StreamId(id)
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
-                print(
+                logger.info(
                     f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {value=}"
                 )
                 for i in range(range_start, len(value)):
                     if StreamId(value[i]["id"]) > stream_id:
                         lo = i
                         break
-                print(f"{lo=}, {list(map(lambda x: x['id'], value[range_start:]))=}")
+                logger.info(f"{lo=}, {list(map(lambda x: x['id'], value[range_start:]))=}")
                 if lo is None:
                     return constants.NULL_BULK_RESP_STRING.encode()
                 inter: list[data_types.RespDataType] = []
@@ -306,7 +309,7 @@ class StreamId:
 
     def validate(self, milliseconds_time: str, seq_no: str) -> bool:
         if milliseconds_time == "0" and seq_no == "0":
-            print(f"Invalid stream id {milliseconds_time}-{seq_no}")
+            logger.info(f"Invalid stream id {milliseconds_time}-{seq_no}")
             return False
         return True
 

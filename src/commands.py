@@ -1,15 +1,16 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 import socket
-import threading
 from datetime import timedelta
-from queue import Queue
-import time
 
 import constants
 import data_types
 import database
+import logs
 import replicas
+
+logger = logs.setup_logger()
+logger.setLevel("INFO")
 
 
 class Command(ABC):
@@ -112,7 +113,7 @@ class ReplConfAckCommand(Command):
         self._raw_cmd = raw_cmd
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
-        print(
+        logger.info(
             f"incrementing {replica_handler.ack_count=} to {replica_handler.ack_count + 1}"
         )
         replica_handler.ack_count += 1
@@ -200,7 +201,7 @@ class KeysCommand(Command):
         self.pattern = pattern
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
-        print(f"executing KeysCommand, {self.raw_cmd=}, {self.pattern=}")
+        logger.info(f"executing KeysCommand, {self.raw_cmd=}, {self.pattern=}")
         return data_types.RespArray(
             list(
                 map(
@@ -220,10 +221,10 @@ class WaitCommand(Command):
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> bytes:
-        print(f"executing WaitCommand, {replica_handler.is_master=}")
+        logger.info(f"executing WaitCommand, {replica_handler.is_master=}")
         now = datetime.now()
         end = now + self.timeout
-        print(f"{now=}, {self.timeout=}, {end=}")
+        logger.info(f"{now=}, {self.timeout=}, {end=}")
         replica_handler.ack_count = 0
         replica_handler.propogate(
             data_types.RespArray(
@@ -234,11 +235,11 @@ class WaitCommand(Command):
                 ]
             ).encode()
         )
-        print(f"finished sending to all slaves")
+        logger.info(f"finished sending to all slaves")
         while replica_handler.ack_count < self.replica_count and datetime.now() < end:
             pass
 
-        print(
+        logger.info(
             f"{replica_handler.ack_count=}, {datetime.now() - end=} (should be positive)"
         )
         # hardcode to len(slaves) if no acks
@@ -276,7 +277,7 @@ class XaddCommand(Command):
         replica_handler,
         conn,
     ) -> bytes:
-        print(f"executing XaddCommand, {self.stream_key=}, {self.data=}")
+        logger.info(f"executing XaddCommand, {self.stream_key=}, {self.data=}")
         raw_stream_entry_id = self.data[0]
         if not isinstance(raw_stream_entry_id, data_types.RespBulkString):
             raise Exception(f"Invalid stream entry id {raw_stream_entry_id}")
@@ -294,7 +295,7 @@ class XaddCommand(Command):
             if not isinstance(stream_value, data_types.RespBulkString):
                 raise Exception(f"Invalid stream entry value {stream_value}")
             kv_dict[stream_key.data.decode()] = stream_value.data.decode()
-        print(f"{stream_entry_id=}, {kv_dict=}")
+        logger.info(f"{stream_entry_id=}, {kv_dict=}")
         processed_stream_id = db.xadd(
             self.stream_key.decode(), stream_entry_id.decode(), kv_dict
         )
@@ -309,7 +310,7 @@ class XrangeCommand(Command):
         self.end = end
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
-        print(f"executing XrangeCommand, {self.key=}, {self.start=}, {self.end=}")
+        logger.info(f"executing XrangeCommand, {self.key=}, {self.start=}, {self.end=}")
         return db.xrange(self.key.decode(), self.start, self.end)
 
 
@@ -327,7 +328,7 @@ class XreadCommand(Command):
         self.timeout = timeout
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
-        print(f"executing XreadCommand, {self.stream_keys=}, {self.ids=}")
+        logger.info(f"executing XreadCommand, {self.stream_keys=}, {self.ids=}")
         res = db.xread(self.stream_keys, self.ids, self.timeout)
-        print(f"xread returning {res=}")
+        logger.info(f"xread returning {res=}")
         return res

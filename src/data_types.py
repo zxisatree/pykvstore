@@ -3,6 +3,10 @@ from base64 import b64decode
 
 import codec
 import constants
+import logs
+
+logger = logs.setup_logger()
+logger.setLevel("INFO")
 
 
 class RespDataType(ABC):
@@ -40,7 +44,7 @@ class RespSimpleString(RespDataType):
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
         if pos >= len(data):
-            print("Invalid RESP simple string, missing \\r\\n separator")
+            logger.info("Invalid RESP simple string, missing \\r\\n separator")
         simple_str = data[start:pos]
         pos += 2
         assert pos <= len(data)
@@ -84,13 +88,13 @@ class RespArray(RespDataType):
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
         if pos >= len(data):
-            print("Invalid RESP array, missing \\r\\n separator")
+            logger.info("Invalid RESP array, missing \\r\\n separator")
         array_len = int(data[start:pos])
         pos += 2
 
         elements: list[RespDataType] = []
         for _ in range(array_len):
-            # print(f"Array.decode: {pos=}, {data[pos:]=}")
+            # logger.info(f"Array.decode: {pos=}, {data[pos:]=}")
             element, pos = codec.parse(data, pos)
             elements.append(element)
         assert pos <= len(data)
@@ -123,13 +127,13 @@ class RespBulkString(RespDataType):
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
         if pos >= len(data):
-            print("Invalid RESP bulk string, missing \\r\\n separator")
+            logger.info("Invalid RESP bulk string, missing \\r\\n separator")
         bulk_str_len = int(data[start:pos])
         pos += 2
 
         bulk_str = data[pos : pos + bulk_str_len]
         pos += bulk_str_len + 2
-        # print(f"{data=}, {pos=}, {len(data)=}")
+        # logger.info(f"{data=}, {pos=}, {len(data)=}")
         assert pos <= len(data)
         return (RespBulkString(bulk_str), pos)
 
@@ -156,7 +160,7 @@ class RespInteger(RespDataType):
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
         if pos >= len(data):
-            print("Invalid RESP integer, missing \\r\\n separator")
+            logger.info("Invalid RESP integer, missing \\r\\n separator")
         val = int(data[start:pos])
         pos += 2
         assert pos <= len(data)
@@ -185,7 +189,7 @@ class RespSimpleError(RespDataType):
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
         if pos >= len(data):
-            print("Invalid RESP simple error, missing \\r\\n separator")
+            logger.info("Invalid RESP simple error, missing \\r\\n separator")
         simple_err = data[start:pos]
         pos += 2
         assert pos <= len(data)
@@ -216,7 +220,7 @@ class RdbFile(RespDataType):
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
         if pos >= len(data):
-            print("Invalid RDB file, missing \\r\\n separator")
+            logger.info("Invalid RDB file, missing \\r\\n separator")
         bulk_str_len = int(data[start:pos])
         pos += 2
 
@@ -233,7 +237,7 @@ def decode_bulk_string_or_rdb(data: bytes, pos: int) -> tuple[RespDataType, int]
     while pos < len(data) and not codec.is_sep(data, pos):
         pos += 1
     if pos >= len(data):
-        print("Invalid bulk string/RDB file, missing \\r\\n separator")
+        logger.info("Invalid bulk string/RDB file, missing \\r\\n separator")
     bulk_str_len = int(data[start:pos])
     pos += 2 + bulk_str_len
     if codec.is_sep(data, pos):

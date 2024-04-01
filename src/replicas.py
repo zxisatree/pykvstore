@@ -2,12 +2,16 @@ import threading
 import uuid
 import socket
 
-import singleton_meta
 import codec
 import commands
 import constants
 import database
 import data_types
+import logs
+import singleton_meta
+
+logger = logs.setup_logger()
+logger.setLevel("INFO")
 
 
 class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
@@ -16,7 +20,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         is_master: bool,
         ip: str,
         port: int,
-        replica_of: list,
+        replica_of: tuple[str, int],
         db: database.Database,
     ):
         self.is_master = is_master
@@ -51,10 +55,10 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             data_types.RespArray([data_types.RespBulkString(b"ping")]).encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
-        print(f"Replica sent ping, got {data=}")
+        logger.info(f"Replica sent ping, got {data=}")
         # check if we get PONG
         if data != commands.PingCommand(b"").execute(None, None, None):
-            print("Failed to connect to master")
+            logger.info("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
                 [
@@ -65,10 +69,10 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             ).encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
-        print(f"Replica sent REPLCONF 1, got {data=}")
+        logger.info(f"Replica sent REPLCONF 1, got {data=}")
         # check if we get OK
         if data != constants.OK_SIMPLE_RESP_STRING:
-            print("Failed to connect to master")
+            logger.info("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
                 [
@@ -79,10 +83,10 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             ).encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
-        print(f"Replica sent REPLCONF 2, got {data=}")
+        logger.info(f"Replica sent REPLCONF 2, got {data=}")
         # check if we get OK
         if data != constants.OK_SIMPLE_RESP_STRING:
-            print("Failed to connect to master")
+            logger.info("Failed to connect to master")
         self.master_conn.sendall(
             data_types.RespArray(
                 [
@@ -92,18 +96,18 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 ]
             ).encode()
         )
-        print(f"Replica sent PSYNC")
+        logger.info(f"Replica sent PSYNC")
         handshake_step = 0
 
         while True:
-            print("Replica waiting for master...")
+            logger.info("Replica waiting for master...")
             data = self.master_conn.recv(constants.BUFFER_SIZE)
-            print(f"from master: raw {data=}")
+            logger.info(f"from master: raw {data=}")
             if not data:
-                print("Replica breaking")
+                logger.info("Replica breaking")
                 break
             cmds = codec.parse_cmd(data)
-            print(f"replica {cmds=}")
+            logger.info(f"replica {cmds=}")
             if isinstance(cmds, list):
                 for cmd in cmds:
                     self.respond_to_master(cmd, db)
@@ -126,25 +130,25 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
     ) -> int:
         # check if we get FULLRESYNC and RDB file
         if handshake_step == 0 and isinstance(cmd, commands.FullResyncCommand):
-            print("Replica got FULLRESYNC")
+            logger.info("Replica got FULLRESYNC")
             return 1
         elif handshake_step == 1 and isinstance(cmd, commands.RdbFileCommand):
-            print("Replica got RDB file")
+            logger.info("Replica got RDB file")
             return 2
         else:
             return handshake_step
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
-        print(f"replica respond_to_master {executed=}, {cmd=}")
+        logger.info(f"replica respond_to_master {executed=}, {cmd=}")
         if isinstance(cmd, commands.ReplConfGetAckCommand):
             if isinstance(executed, bytes):  # impossible to get list here
-                print(f"responding {executed}")
+                logger.info(f"responding {executed}")
                 self.master_conn.sendall(executed)
 
     def propogate(self, raw_cmd: bytes):
         for slave in self.slaves:
-            print(f"Propogating to {slave=}")
+            logger.info(f"Propogating to {slave=}")
             slave.sendall(raw_cmd)
 
     def get_info(self) -> bytes:

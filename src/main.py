@@ -12,28 +12,35 @@ import codec
 import commands
 import constants
 import database
+import logs
 import replicas
+
+logger = logs.setup_logger()
+logger.setLevel("INFO")
 
 
 def main():
-    argparser = setup_argpaser()
-    args = argparser.parse_args()
-    db = database.Database(args.dir, args.dbfilename)
+    either = validate_parse_args(setup_argpaser().parse_args())
+    if either[1] is not None:
+        logger.error(f"Error parsing command line arguments: {either[1]}")
+        return
+    port, replicaof, rdbdir, dbfilename = either[0]
+    db = database.Database(rdbdir, dbfilename)
     replica_handler = replicas.ReplicaHandler(
-        False if args.replicaof else True, "localhost", args.port, args.replicaof, db
+        False if replicaof else True, "localhost", port, replicaof, db
     )
 
     try:
         socket.setdefaulttimeout(constants.CONN_TIMEOUT)
-        server_socket = socket.create_server(("localhost", args.port))
+        server_socket = socket.create_server(("localhost", port))
         while True:
-            print("main thread waiting...")
+            logger.info("main thread waiting...")
             conn, addr = server_socket.accept()
             threading.Thread(
                 target=handle_conn, args=(conn, addr, db, replica_handler)
             ).start()
-    except Exception as e:
-        print(f"Exception: {e}")
+    except Exception:
+        logger.exception("main thread exception")
 
 
 def handle_conn(
@@ -47,15 +54,12 @@ def handle_conn(
             data = conn.recv(constants.BUFFER_SIZE)
             if not data:
                 break
-            print(f"raw {data=}")
+            logger.info(f"raw {data=}")
             cmds = codec.parse_cmd(data)
-            if isinstance(cmds, list):
-                for cmd in cmds:
-                    execute_cmd(cmd, db, replica_handler, conn)
-            else:
-                execute_cmd(cmds, db, replica_handler, conn)
+            for cmd in cmds:
+                execute_cmd(cmd, db, replica_handler, conn)
 
-        print(f"Connection closed: {addr=}")
+        logger.info(f"Connection closed: {addr=}")
 
 
 def execute_cmd(
@@ -67,11 +71,21 @@ def execute_cmd(
     executed = cmd.execute(db, replica_handler, conn)
     if isinstance(executed, list):
         for resp in executed:
-            print(f"responding {resp}")
+            logger.info(f"responding {resp}")
             conn.sendall(resp)
     else:
-        print(f"responding {executed}")
+        logger.info(f"responding {executed}")
         conn.sendall(executed)
+
+
+def validate_parse_args(
+    args: argparse.Namespace,
+) -> tuple[tuple[int, tuple[str, int], str, str], None] | tuple[None, str]:
+    if not isinstance(args.port, int) or args.port < 0 or args.port > 65535:
+        return None, "Invalid port number"
+    if not isinstance(args.replicaof, list) or len(args.replicaof) != 2:
+        return None, "replicaof is not a list of length 2"
+    return (args.port, tuple(args.replicaof), args.dir, args.dbfilename), None
 
 
 def setup_argpaser() -> argparse.ArgumentParser:
