@@ -85,7 +85,16 @@ def validate_parse_args(
         return None, "Invalid port number"
     if not isinstance(args.replicaof, list) or len(args.replicaof) != 2:
         return None, "replicaof is not a list of length 2"
-    return (args.port, tuple(args.replicaof), args.dir, args.dbfilename), None
+    try:
+        replicaof_int = int(args.replicaof[1])
+    except:
+        return None, "replicaof port is not an integer"
+    return (
+        args.port,
+        (args.replicaof[0], replicaof_int),
+        args.dir,
+        args.dbfilename,
+    ), None
 
 
 def setup_argpaser() -> argparse.ArgumentParser:
@@ -99,7 +108,7 @@ def setup_argpaser() -> argparse.ArgumentParser:
         "--replicaof",
         type=str,
         nargs=2,
-        default=None,
+        default=["localhost", "6379"],
         help="Master IP and port to replicate from (default: None)",
     )
     argparser.add_argument(
