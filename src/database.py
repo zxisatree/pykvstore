@@ -13,7 +13,9 @@ import singleton_meta
 
 class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
-    store: dict[str, tuple[str, datetime | None] | list[dict[str, str]]] = {}
+    store_str_val_type = tuple[str, datetime | None]
+    store_stream_val_type = list[tuple["StreamId", dict[str, str]]]
+    store: dict[str, store_str_val_type | store_stream_val_type] = {}
 
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir
@@ -32,7 +34,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         with self.lock:
             return len(self.store)
 
-    def __getitem__(self, key: str) -> str | list[dict] | None:
+    def __getitem__(self, key: str) -> str | store_stream_val_type | None:
         with self.lock:
             if key not in self.store:
                 return None
@@ -43,7 +45,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return None
             return value[0]
 
-    def __setitem__(self, key: str, value: tuple[str, datetime | None]):
+    def __setitem__(self, key: str, value: store_str_val_type):
         with self.lock:
             self.store[key] = value
 
@@ -110,7 +112,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return constants.STREAM_ID_TOO_SMALL_ERROR.encode()
             if not cur_value:
                 return None
-            last_mst, last_seq_no = cur_value[-1]["id"].split("-")
+            last_mst, last_seq_no = str(cur_value[-1][0]).split("-")
             if int(milliseconds_time) < int(last_mst):
                 return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
             elif seq_no_is_star:
@@ -131,10 +133,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 logger.info(f"stream key {key} is not a stream")
                 raise Exception(f"stream key {key} is not a stream")
             processed_id = self.process_stream_id(
-                id, cur_value[-1]["id"] if cur_value else None
+                id, str(cur_value[-1][0]) if cur_value else None
             )
             logger.info(f"got {processed_id=}")
-            cur_value.append({"id": processed_id, **value})
+            cur_value.append((StreamId(processed_id), value))
             return processed_id
 
     def process_stream_id(self, id: str, last_id: str | None) -> str:
@@ -179,7 +181,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 start = f"{start}-0"
             if end == "+":
                 end = (
-                    value[-1]["id"]
+                    str(value[-1][0])
                     if value
                     else f"{constants.MAX_STREAM_ID_SEQ_NO}-{constants.MAX_STREAM_ID_SEQ_NO}"
                 )
@@ -189,13 +191,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             end_stream_id = StreamId(end)
             lo, hi = None, None
             for i in range(len(value)):
-                if StreamId(value[i]["id"]) > start_stream_id:
+                if value[i][0] > start_stream_id:
                     lo = i
                     break
             if lo is None:
                 return data_types.RespArray([]).encode()
             for i in range(lo, len(value)):
-                if StreamId(value[i]["id"]) > end_stream_id:
+                if value[i][0] > end_stream_id:
                     hi = i
                     break
             # logger.info(f"{lo=}, {hi=}. {end_stream_id=}")
@@ -204,15 +206,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             res = []
             for i in range(lo - 1 if lo != 0 else 0, hi):
                 flattened_kvs = []
-                for k, v in value[i].items():
-                    if k == "id":
-                        continue
+                for k, v in value[i][1].items():
                     flattened_kvs.append(data_types.RespBulkString(k.encode()))
                     flattened_kvs.append(data_types.RespBulkString(v.encode()))
                 res.append(
                     data_types.RespArray(
                         [
-                            data_types.RespBulkString(value[i]["id"].encode()),
+                            data_types.RespBulkString(str(value[i][0]).encode()),
                             data_types.RespArray(flattened_kvs),
                         ]
                     )
@@ -256,7 +256,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return constants.XOP_ON_NON_STREAM_ERROR.encode()
                 if id == "$":
                     logger.info(f"{original_lens[i]}")
-                    id = value[original_lens[i] - 1]["id"] if value else "0-0"
+                    id = str(value[original_lens[i] - 1][0]) if value else "0-0"
                 stream_id = StreamId(id)
                 lo = None
                 range_start = original_lens[i] if timeout is not None else 0
@@ -264,26 +264,24 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {value=}"
                 )
                 for i in range(range_start, len(value)):
-                    if StreamId(value[i]["id"]) > stream_id:
+                    if value[i][0] > stream_id:
                         lo = i
                         break
                 logger.info(
-                    f"{lo=}, {list(map(lambda x: x['id'], value[range_start:]))=}"
+                    f"{lo=}, {list(map(lambda x: x[0], value[range_start:]))=}"
                 )
                 if lo is None:
                     return constants.NULL_BULK_RESP_STRING.encode()
                 inter: list[data_types.RespDataType] = []
                 for i in range(lo, len(value)):
                     flattened_kvs = []
-                    for k, v in value[i].items():
-                        if k == "id":
-                            continue
+                    for k, v in value[i][1].items():
                         flattened_kvs.append(data_types.RespBulkString(k.encode()))
                         flattened_kvs.append(data_types.RespBulkString(v.encode()))
                     inter.append(
                         data_types.RespArray(
                             [
-                                data_types.RespBulkString(value[i]["id"].encode()),
+                                data_types.RespBulkString(str(value[i][0]).encode()),
                                 data_types.RespArray(flattened_kvs),
                             ]
                         )

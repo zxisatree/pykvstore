@@ -132,15 +132,12 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
-        # logger.info(f"replica respond_to_master {executed=}, {cmd=}")
         if isinstance(cmd, commands.ReplConfGetAckCommand):
             if isinstance(executed, bytes):  # impossible to get list here
-                # logger.info(f"responding {executed}")
                 self.master_conn.sendall(executed)
 
     def propogate(self, raw_cmd: bytes):
         for slave in self.slaves:
-            # logger.info(f"Propogating to {slave=}")
             slave.sendall(raw_cmd)
 
     def get_info(self) -> bytes:

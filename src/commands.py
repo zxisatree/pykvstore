@@ -197,7 +197,6 @@ class KeysCommand(Command):
         self.pattern = pattern
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
-        logger.info(f"executing KeysCommand, {self.raw_cmd=}, {self.pattern=}")
         return data_types.RespArray(
             list(
                 map(
@@ -217,10 +216,8 @@ class WaitCommand(Command):
     def execute(
         self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
     ) -> bytes:
-        logger.info(f"executing WaitCommand, {replica_handler.is_master=}")
         now = datetime.now()
         end = now + self.timeout
-        logger.info(f"{now=}, {self.timeout=}, {end=}")
         replica_handler.ack_count = 0
         replica_handler.propogate(
             data_types.RespArray(
@@ -273,7 +270,6 @@ class XaddCommand(Command):
         replica_handler,
         conn,
     ) -> bytes:
-        logger.info(f"executing XaddCommand, {self.stream_key=}, {self.data=}")
         raw_stream_entry_id = self.data[0]
         if not isinstance(raw_stream_entry_id, data_types.RespBulkString):
             raise Exception(f"Invalid stream entry id {raw_stream_entry_id}")
@@ -306,7 +302,6 @@ class XrangeCommand(Command):
         self.end = end
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
-        logger.info(f"executing XrangeCommand, {self.key=}, {self.start=}, {self.end=}")
         return db.xrange(self.key.decode(), self.start, self.end)
 
 
@@ -324,7 +319,5 @@ class XreadCommand(Command):
         self.timeout = timeout
 
     def execute(self, db: database.Database, replica_handler, conn) -> bytes:
-        logger.info(f"executing XreadCommand, {self.stream_keys=}, {self.ids=}")
         res = db.xread(self.stream_keys, self.ids, self.timeout)
-        logger.info(f"xread returning {res=}")
         return res
