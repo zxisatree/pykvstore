@@ -160,7 +160,7 @@ class PsyncCommand(Command):
             data_types.RespSimpleString(
                 f"FULLRESYNC {replica_handler.ip} {replica_handler.master_repl_offset}".encode()
             ).encode(),
-            data_types.RdbFile(b"").encode(),
+            data_types.RdbFile(constants.EMPTY_RDB_FILE).encode(),
         ]
 
 

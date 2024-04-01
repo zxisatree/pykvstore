@@ -21,9 +21,10 @@ def parse_cmd(cmd: bytes) -> list[commands.Command]:
         elif isinstance(resp_data, data_types.RdbFile):
             final_cmds.append(commands.RdbFileCommand(resp_data.data.data))
         else:
-            raise Exception(
+            logger.error(
                 f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
             )
+            final_cmds.append(commands.NoOp(cmd[orig:pos]))
     return final_cmds
 
 
