@@ -81,7 +81,6 @@ class GetCommand(Command):
 
 
 class CommandCommand(Command):
-    # TODO
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
 

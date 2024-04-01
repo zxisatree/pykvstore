@@ -10,6 +10,7 @@ from logs import logger
 import rdb
 import singleton_meta
 
+
 class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
     store: dict[str, tuple[str, datetime | None] | list[dict[str, str]]] = {}
@@ -76,6 +77,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             for key, value in self.store.items():
                 if not isinstance(value, list):
                     _, expiry = value
+                    logger.error(f"{expiry=}")
                     if expiry and expiry < datetime.now():
                         del self.store[key]
 
@@ -266,7 +268,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     if StreamId(value[i]["id"]) > stream_id:
                         lo = i
                         break
-                logger.info(f"{lo=}, {list(map(lambda x: x['id'], value[range_start:]))=}")
+                logger.info(
+                    f"{lo=}, {list(map(lambda x: x['id'], value[range_start:]))=}"
+                )
                 if lo is None:
                     return constants.NULL_BULK_RESP_STRING.encode()
                 inter: list[data_types.RespDataType] = []
