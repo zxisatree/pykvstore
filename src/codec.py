@@ -2,10 +2,7 @@ from datetime import datetime, timedelta
 
 import commands
 import data_types
-import logs
-
-logger = logs.setup_logger()
-logger.setLevel("INFO")
+from logs import logger
 
 
 def parse_cmd(cmd: bytes) -> list[commands.Command]:

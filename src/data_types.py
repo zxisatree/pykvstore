@@ -3,10 +3,7 @@ from base64 import b64decode
 
 import codec
 import constants
-import logs
-
-logger = logs.setup_logger()
-logger.setLevel("INFO")
+from logs import logger
 
 
 class RespDataType(ABC):
@@ -94,7 +91,6 @@ class RespArray(RespDataType):
 
         elements: list[RespDataType] = []
         for _ in range(array_len):
-            # logger.info(f"Array.decode: {pos=}, {data[pos:]=}")
             element, pos = codec.parse(data, pos)
             elements.append(element)
         assert pos <= len(data)
@@ -133,7 +129,6 @@ class RespBulkString(RespDataType):
 
         bulk_str = data[pos : pos + bulk_str_len]
         pos += bulk_str_len + 2
-        # logger.info(f"{data=}, {pos=}, {len(data)=}")
         assert pos <= len(data)
         return (RespBulkString(bulk_str), pos)
 

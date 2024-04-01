@@ -6,11 +6,8 @@ from datetime import timedelta
 import constants
 import data_types
 import database
-import logs
+from logs import logger
 import replicas
-
-logger = logs.setup_logger()
-logger.setLevel("INFO")
 
 
 class Command(ABC):

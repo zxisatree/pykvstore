@@ -1,9 +1,6 @@
 import datetime
 
-import logs
-
-logger = logs.setup_logger()
-logger.setLevel("INFO")
+from logs import logger
 
 
 class RdbFile:

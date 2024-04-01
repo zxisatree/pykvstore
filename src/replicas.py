@@ -7,11 +7,8 @@ import commands
 import constants
 import database
 import data_types
-import logs
+from logs import logger
 import singleton_meta
-
-logger = logs.setup_logger()
-logger.setLevel("INFO")
 
 
 class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
@@ -37,11 +34,6 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             "connected_slaves": len(self.slaves),
             "master_replid": self.id if is_master else "?",
             "master_repl_offset": 0,
-            # "second_repl_offset": -1,
-            # "repl_backlog_active": 0,
-            # "repl_backlog_size": 1048576,
-            # "repl_backlog_first_byte_offset": 0,
-            # "repl_backlog_histlen": 0,
         }
         # attempt to connect to master
         if not is_master:
@@ -102,9 +94,9 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         while True:
             logger.info("Replica waiting for master...")
             data = self.master_conn.recv(constants.BUFFER_SIZE)
-            logger.info(f"from master: raw {data=}")
+            # logger.info(f"from master: raw {data=}")
             if not data:
-                logger.info("Replica breaking")
+                # logger.info("Replica breaking")
                 break
             cmds = codec.parse_cmd(data)
             logger.info(f"replica {cmds=}")
@@ -140,15 +132,15 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
-        logger.info(f"replica respond_to_master {executed=}, {cmd=}")
+        # logger.info(f"replica respond_to_master {executed=}, {cmd=}")
         if isinstance(cmd, commands.ReplConfGetAckCommand):
             if isinstance(executed, bytes):  # impossible to get list here
-                logger.info(f"responding {executed}")
+                # logger.info(f"responding {executed}")
                 self.master_conn.sendall(executed)
 
     def propogate(self, raw_cmd: bytes):
         for slave in self.slaves:
-            logger.info(f"Propogating to {slave=}")
+            # logger.info(f"Propogating to {slave=}")
             slave.sendall(raw_cmd)
 
     def get_info(self) -> bytes:

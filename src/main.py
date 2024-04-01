@@ -12,11 +12,8 @@ import codec
 import commands
 import constants
 import database
-import logs
+from logs import logger
 import replicas
-
-logger = logs.setup_logger()
-logger.setLevel("INFO")
 
 
 def main():

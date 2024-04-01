@@ -6,12 +6,9 @@ import os
 
 import constants
 import data_types
-import logs
+from logs import logger
 import rdb
 import singleton_meta
-
-logger = logs.setup_logger()
-logger.setLevel("INFO")
 
 class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()

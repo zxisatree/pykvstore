@@ -9,4 +9,8 @@ def setup_logger() -> logging.Logger:
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+    # logger.setLevel(logging.INFO)
     return logger
+
+
+logger = setup_logger()
