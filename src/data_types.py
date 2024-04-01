@@ -18,6 +18,10 @@ class RespDataType(ABC):
     # Returns the parsed object and the new pos
     def decode(data: bytes, pos: int) -> tuple["RespDataType", int]: ...
 
+    @staticmethod
+    @abstractmethod
+    def validate(that) -> "RespDataType": ...
+
 
 class RespSimpleString(RespDataType):
     def __init__(self, data: bytes):
@@ -46,6 +50,12 @@ class RespSimpleString(RespDataType):
         pos += 2
         assert pos <= len(data)
         return (RespSimpleString(simple_str), pos)
+
+    @staticmethod
+    def validate(that) -> "RespSimpleString":
+        if not isinstance(that, RespSimpleString):
+            raise Exception(f"Expected RespSimpleString, got {type(that)}")
+        return that
 
 
 class RespArray(RespDataType):
@@ -96,6 +106,12 @@ class RespArray(RespDataType):
         assert pos <= len(data)
         return (RespArray(elements), pos)
 
+    @staticmethod
+    def validate(that) -> "RespArray":
+        if not isinstance(that, RespArray):
+            raise Exception(f"Expected RespArray, got {type(that)}")
+        return that
+
 
 class RespBulkString(RespDataType):
     def __init__(self, data: bytes):
@@ -132,6 +148,12 @@ class RespBulkString(RespDataType):
         assert pos <= len(data)
         return (RespBulkString(bulk_str), pos)
 
+    @staticmethod
+    def validate(that) -> "RespBulkString":
+        if not isinstance(that, RespBulkString):
+            raise Exception(f"Expected RespBulkString, got {type(that)}")
+        return that
+
 
 class RespInteger(RespDataType):
     def __init__(self, val: int):
@@ -161,6 +183,12 @@ class RespInteger(RespDataType):
         assert pos <= len(data)
         return (RespInteger(val), pos)
 
+    @staticmethod
+    def validate(that) -> "RespInteger":
+        if not isinstance(that, RespInteger):
+            raise Exception(f"Expected RespInteger, got {type(that)}")
+        return that
+
 
 class RespSimpleError(RespDataType):
     def __init__(self, data: bytes):
@@ -189,6 +217,12 @@ class RespSimpleError(RespDataType):
         pos += 2
         assert pos <= len(data)
         return (RespSimpleError(simple_err), pos)
+
+    @staticmethod
+    def validate(that) -> "RespSimpleError":
+        if not isinstance(that, RespSimpleError):
+            raise Exception(f"Expected RespSimpleError, got {type(that)}")
+        return that
 
 
 class RdbFile(RespDataType):
@@ -223,6 +257,12 @@ class RdbFile(RespDataType):
         pos += bulk_str_len
         assert pos <= len(data)
         return (RdbFile(bulk_str), pos)
+
+    @staticmethod
+    def validate(that) -> "RdbFile":
+        if not isinstance(that, RdbFile):
+            raise Exception(f"Expected RdbFile, got {type(that)}")
+        return that
 
 
 def decode_bulk_string_or_rdb(data: bytes, pos: int) -> tuple[RespDataType, int]:
