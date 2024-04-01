@@ -88,7 +88,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if isinstance(value, list):
                 return False
             expiry = value[1]
-            logger.info(f"{expiry=}, {datetime.now()=}")
             if expiry and expiry < datetime.now():
                 del self.store[key]
                 return True

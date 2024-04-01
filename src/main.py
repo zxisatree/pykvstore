@@ -77,21 +77,23 @@ def execute_cmd(
 
 def validate_parse_args(
     args: argparse.Namespace,
-) -> tuple[tuple[int, tuple[str, int], str, str], None] | tuple[None, str]:
+) -> tuple[tuple[int, tuple[str, int] | None, str, str], None] | tuple[None, str]:
     if not isinstance(args.port, int) or args.port < 0 or args.port > 65535:
         return None, "Invalid port number"
-    if not isinstance(args.replicaof, list) or len(args.replicaof) != 2:
-        return None, "replicaof is not a list of length 2"
-    try:
-        replicaof_int = int(args.replicaof[1])
-    except:
-        return None, "replicaof port is not an integer"
-    return (
-        args.port,
-        (args.replicaof[0], replicaof_int),
-        args.dir,
-        args.dbfilename,
-    ), None
+    if args.replicaof is not None:
+        if not isinstance(args.replicaof, list) or len(args.replicaof) != 2:
+            return None, "replicaof is not a list of length 2"
+        try:
+            replicaof_int = int(args.replicaof[1])
+        except:
+            return None, "replicaof port is not an integer"
+        return (
+            args.port,
+            (args.replicaof[0], replicaof_int),
+            args.dir,
+            args.dbfilename,
+        ), None
+    return (args.port, None, args.dir, args.dbfilename), None
 
 
 def setup_argpaser() -> argparse.ArgumentParser:
@@ -105,7 +107,7 @@ def setup_argpaser() -> argparse.ArgumentParser:
         "--replicaof",
         type=str,
         nargs=2,
-        default=["localhost", "6379"],
+        default=None,
         help="Master IP and port to replicate from (default: None)",
     )
     argparser.add_argument(

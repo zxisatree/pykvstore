@@ -17,7 +17,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         is_master: bool,
         ip: str,
         port: int,
-        replica_of: tuple[str, int],
+        replica_of: tuple[str, int] | None,
         db: database.Database,
     ):
         self.is_master = is_master
@@ -25,7 +25,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.id = str(uuid.uuid4())
         self.ip = ip
         self.port = port
-        if replica_of:
+        if replica_of is not None:
             self.master_ip = replica_of[0]
             self.master_port = replica_of[1]
         self.slaves: list[socket.socket] = []
