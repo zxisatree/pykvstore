@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 
 import commands
 import data_types
-import exceptions
 from logs import logger
 
 
@@ -18,7 +17,7 @@ def parse_cmd(cmd: bytes) -> list[commands.Command]:
         elif isinstance(resp_data, data_types.RespSimpleString):
             # is +FULLRESYNC
             final_cmds.append(commands.FullResyncCommand(resp_data.data))
-        elif isinstance(resp_data, data_types.RdbFile):
+        elif isinstance(resp_data, data_types.RespRdbFile):
             final_cmds.append(commands.RdbFileCommand(resp_data.data.data))
         else:
             logger.error(
@@ -32,10 +31,8 @@ def parse_resp_cmd(
     resp_data: data_types.RespArray, cmd: bytes, start: int, end: int
 ) -> commands.Command:
     try:
-        print(f"in parse_resp_cmd")
         cmd_str = data_types.RespBulkString.validate(resp_data[0]).data.upper()
         raw_cmd = cmd[start:end]
-        print(f"parse_resp_cmd checking cmd_str")
         if cmd_str == b"PING":
             return commands.PingCommand(raw_cmd)
         elif cmd_str == b"ECHO":
@@ -125,10 +122,7 @@ def parse_resp_cmd(
         else:
             return commands.RdbFileCommand(raw_cmd)
     except Exception:
-        exception_msg = f"Unsupported command {cmd_str}, {type(cmd_str)}"
-        logger.info("hi")
-        logger.error("erriandsf")
-        logger.exception(exception_msg)
+        logger.error(f"Unsupported command {cmd_str}, {type(cmd_str)}")
         return commands.NoOp(raw_cmd)
 
 

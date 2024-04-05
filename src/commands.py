@@ -160,7 +160,7 @@ class PsyncCommand(Command):
             data_types.RespSimpleString(
                 f"FULLRESYNC {replica_handler.ip} {replica_handler.master_repl_offset}".encode()
             ).encode(),
-            data_types.RdbFile(constants.EMPTY_RDB_FILE).encode(),
+            data_types.RespRdbFile(constants.EMPTY_RDB_FILE).encode(),
         ]
 
 
@@ -175,7 +175,7 @@ class FullResyncCommand(Command):
 
 class RdbFileCommand(Command):
     def __init__(self, data: bytes) -> None:
-        self.rdbfile = data_types.RdbFile(data)
+        self.rdbfile = data_types.RespRdbFile(data)
         self._raw_cmd = data
 
     # slave received a RDB file

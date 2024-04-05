@@ -232,7 +232,7 @@ class RespSimpleError(RespDataType):
         return that
 
 
-class RdbFile(RespDataType):
+class RespRdbFile(RespDataType):
     def __init__(self, data: bytes):
         """Throws an exception if file is invalid"""
         self.data = rdb.RdbFile(data)
@@ -250,7 +250,7 @@ class RdbFile(RespDataType):
         return f"${len(self.data)}\r\n".encode() + self.data.data
 
     @staticmethod
-    def decode(data: bytes, pos: int) -> tuple["RdbFile", int]:
+    def decode(data: bytes, pos: int) -> tuple["RespRdbFile", int]:
         start = pos + 1
         while pos < len(data) and not codec.is_sep(data, pos):
             pos += 1
@@ -262,11 +262,11 @@ class RdbFile(RespDataType):
         bulk_str = data[pos : pos + bulk_str_len]
         pos += bulk_str_len
         assert pos <= len(data)
-        return (RdbFile(bulk_str), pos)
+        return (RespRdbFile(bulk_str), pos)
 
     @staticmethod
-    def validate(that) -> "RdbFile":
-        if not isinstance(that, RdbFile):
+    def validate(that) -> "RespRdbFile":
+        if not isinstance(that, RespRdbFile):
             raise exceptions.ValidationError(f"Expected RdbFile, got {type(that)}")
         return that
 
@@ -284,4 +284,4 @@ def decode_bulk_string_or_rdb(data: bytes, pos: int) -> tuple[RespDataType, int]
     if codec.is_sep(data, pos):
         return RespBulkString.decode(data, orig)
     else:
-        return RdbFile.decode(data, orig)
+        return RespRdbFile.decode(data, orig)
