@@ -1,4 +1,5 @@
 import argparse
+import os
 import select
 import socket
 import threading
@@ -30,6 +31,13 @@ def main():
 
     try:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        socket.create_server
+        if os.name not in ("nt", "cygwin"):
+            try:
+                server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            except:
+                # dirty fix for non linux to just ignore the error
+                pass
         server_socket.bind(("localhost", port))
         while True:
             server_socket.listen()
