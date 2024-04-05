@@ -1,4 +1,5 @@
 import argparse
+import select
 import socket
 import threading
 
@@ -28,14 +29,19 @@ def main():
     )
 
     try:
-        socket.setdefaulttimeout(constants.CONN_TIMEOUT)
-        server_socket = socket.create_server(("localhost", port))
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(("localhost", port))
         while True:
-            logger.info("main thread waiting...")
-            conn, addr = server_socket.accept()
-            threading.Thread(
-                target=handle_conn, args=(conn, addr, db, replica_handler)
-            ).start()
+            server_socket.listen()
+            ready = select.select([server_socket], [], [], 1)
+            logger.info(f"{ready=}")
+            if ready[0]:
+                conn, addr = server_socket.accept()
+                thread = threading.Thread(
+                    target=handle_conn, args=(conn, addr, db, replica_handler)
+                )
+                thread.daemon = True
+                thread.start()
     except Exception:
         logger.exception("main thread exception")
 
