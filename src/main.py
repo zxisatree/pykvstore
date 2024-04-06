@@ -41,8 +41,7 @@ def main():
         server_socket.bind(("localhost", port))
         while True:
             server_socket.listen()
-            ready = select.select([server_socket], [], [], 1)
-            logger.info(f"{ready=}")
+            ready = select.select([server_socket], [], [], 0.5)
             if ready[0]:
                 conn, addr = server_socket.accept()
                 thread = threading.Thread(

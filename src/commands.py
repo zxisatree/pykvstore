@@ -27,8 +27,8 @@ class Command(ABC):
         conn: socket.socket | None,
     ) -> bytes | list[bytes]: ...
 
-    @abstractmethod
     @staticmethod
+    @abstractmethod
     # might raise RequestCraftError
     def craft_request(*args: str) -> "Command": ...
 
