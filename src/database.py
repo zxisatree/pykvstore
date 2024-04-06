@@ -191,7 +191,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             logger.error(f"{lo=}")
             if lo >= len(value):
                 return data_types.RespArray([]).encode()
-            hi = bisect.bisect_left(value, end_stream_id, key=lambda x: x[0])
+            hi = bisect.bisect_right(value, end_stream_id, key=lambda x: x[0])
             logger.error(f"{hi=}")
             if hi >= len(value):
                 hi = len(value)
@@ -333,8 +333,6 @@ class StreamId:
         )
 
     def __lt__(self, other: "StreamId"):
-        logger.error(f"{self=}")
-        logger.error(f"{other=}")
         if self.milliseconds_time != other.milliseconds_time:
             return self.milliseconds_time < other.milliseconds_time
         return self.seq_no < other.seq_no
