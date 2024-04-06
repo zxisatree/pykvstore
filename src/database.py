@@ -187,18 +187,18 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             start_stream_id = StreamId(start)
             end_stream_id = StreamId(end)
 
-            bisect_lo = bisect.bisect_right(
-                value, (start_stream_id, {}), key=lambda x: x[0]
-            )
-            logger.error(f"{bisect_lo=}")
-            if bisect_lo >= len(value):
-                bisect_lo = None
-            bisect_hi = bisect.bisect_left(
-                value, (end_stream_id, {}), key=lambda x: x[0]
-            )
-            logger.error(f"{bisect_hi=}")
-            if bisect_hi >= len(value):
-                bisect_hi = None
+            # bisect_lo = bisect.bisect_right(
+            #     value, (start_stream_id, {}), key=lambda x: x[0]
+            # )
+            # logger.error(f"{bisect_lo=}")
+            # if bisect_lo >= len(value):
+            #     bisect_lo = None
+            # bisect_hi = bisect.bisect_left(
+            #     value, (end_stream_id, {}), key=lambda x: x[0]
+            # )
+            # logger.error(f"{bisect_hi=}")
+            # if bisect_hi >= len(value):
+            #     bisect_hi = None
 
             lo, hi = None, None
             for i in range(len(value)):
