@@ -187,33 +187,29 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             start_stream_id = StreamId(start)
             end_stream_id = StreamId(end)
 
-            bisect_lo = bisect.bisect_right(
-                value, (start_stream_id, {}), key=lambda x: x[0]
-            )
-            logger.error(f"{bisect_lo=}")
-            if bisect_lo >= len(value):
-                bisect_lo = None
-            bisect_hi = bisect.bisect_left(
-                value, (end_stream_id, {}), key=lambda x: x[0]
-            )
-            logger.error(f"{bisect_hi=}")
-            if bisect_hi >= len(value):
-                bisect_hi = None
-
-            lo, hi = None, None
-            for i in range(len(value)):
-                if value[i][0] > start_stream_id:
-                    lo = i
-                    break
-            if lo is None:
+            lo = bisect.bisect_right(value, start_stream_id, key=lambda x: x[0])
+            logger.error(f"{lo=}")
+            if lo >= len(value):
                 return data_types.RespArray([]).encode()
-            for i in range(lo, len(value)):
-                if value[i][0] > end_stream_id:
-                    hi = i
-                    break
-            logger.error(f"{lo=}, {hi=}. {end_stream_id=}")
-            if hi is None:
+            hi = bisect.bisect_left(value, end_stream_id, key=lambda x: x[0])
+            logger.error(f"{hi=}")
+            if hi >= len(value):
                 hi = len(value)
+
+            # lo, hi = None, None
+            # for i in range(len(value)):
+            #     if value[i][0] > start_stream_id:
+            #         lo = i
+            #         break
+            # if lo is None:
+            #     return data_types.RespArray([]).encode()
+            # for i in range(lo, len(value)):
+            #     if value[i][0] > end_stream_id:
+            #         hi = i
+            #         break
+            # logger.error(f"{lo=}, {hi=}. {end_stream_id=}")
+            # if hi is None:
+            #     hi = len(value)
 
             res = []
             for i in range(lo - 1 if lo != 0 else 0, hi):
@@ -314,6 +310,7 @@ class StreamId:
         self.validate(milliseconds_time, seq_no)
         self.milliseconds_time = milliseconds_time
         self.seq_no = seq_no
+        logger.error(f"{self=}")
 
     def validate(self, milliseconds_time: str, seq_no: str) -> bool:
         if milliseconds_time == "0" and seq_no == "0":
@@ -336,6 +333,8 @@ class StreamId:
         )
 
     def __lt__(self, other: "StreamId"):
+        logger.error(f"{self=}")
+        logger.error(f"{other=}")
         if self.milliseconds_time != other.milliseconds_time:
             return self.milliseconds_time < other.milliseconds_time
         return self.seq_no < other.seq_no
