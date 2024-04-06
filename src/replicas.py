@@ -58,7 +58,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         logger.info(f"Replica sent REPLCONF 1, got {data=}")
         # check if we get OK
-        if data != constants.OK_SIMPLE_RESP_STRING:
+        if data != constants.OK_SIMPLE_RESP_STRING.encode():
             logger.info("Failed to connect to master")
             return
 
@@ -68,7 +68,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         logger.info(f"Replica sent REPLCONF 2, got {data=}")
         # check if we get OK
-        if data != constants.OK_SIMPLE_RESP_STRING:
+        if data != constants.OK_SIMPLE_RESP_STRING.encode():
             logger.info("Failed to connect to master")
             return
 
