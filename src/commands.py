@@ -98,7 +98,7 @@ class SetCommand(Command):
     @staticmethod
     def validate_px(px_cmd: data_types.RespBulkString):
         if px_cmd.data.upper() != b"PX":
-            raise Exception(
+            raise exceptions.ValidationError(
                 f"Unsupported SET command (fourth element is not 'PX') {px_cmd.data}"
             )
 

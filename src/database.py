@@ -1,3 +1,4 @@
+import bisect
 from datetime import datetime
 import functools
 from threading import RLock
@@ -130,12 +131,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 self.store[key] = []
             cur_value = self.store[key]
             if not isinstance(cur_value, list):
-                logger.info(f"stream key {key} is not a stream")
                 raise Exception(f"stream key {key} is not a stream")
             processed_id = self.process_stream_id(
                 id, str(cur_value[-1][0]) if cur_value else None
             )
-            logger.info(f"got {processed_id=}")
             cur_value.append((StreamId(processed_id), value))
             return processed_id
 
@@ -161,8 +160,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
         splitted_last = last_id.split("-")
         last_milliseconds_time, last_seq_no = splitted_last
-        logger.info(f"{milliseconds_time=}, {last_milliseconds_time=}")
-        logger.info(f"{seq_no=}, {last_seq_no=}")
         if seq_no == "*":
             if milliseconds_time == last_milliseconds_time:
                 seq_no = str(int(last_seq_no) + 1)
@@ -189,6 +186,20 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 end = f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}"
             start_stream_id = StreamId(start)
             end_stream_id = StreamId(end)
+
+            bisect_lo = bisect.bisect_right(
+                value, (start_stream_id, {}), key=lambda x: x[0]
+            )
+            logger.error(f"{bisect_lo=}")
+            if bisect_lo >= len(value):
+                bisect_lo = None
+            bisect_hi = bisect.bisect_left(
+                value, (end_stream_id, {}), key=lambda x: x[0]
+            )
+            logger.error(f"{bisect_hi=}")
+            if bisect_hi >= len(value):
+                bisect_hi = None
+
             lo, hi = None, None
             for i in range(len(value)):
                 if value[i][0] > start_stream_id:
@@ -200,9 +211,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if value[i][0] > end_stream_id:
                     hi = i
                     break
-            # logger.info(f"{lo=}, {hi=}. {end_stream_id=}")
+            logger.error(f"{lo=}, {hi=}. {end_stream_id=}")
             if hi is None:
                 hi = len(value)
+
             res = []
             for i in range(lo - 1 if lo != 0 else 0, hi):
                 flattened_kvs = []

@@ -21,7 +21,8 @@ class RdbFile:
                 f"Invalid RDB file, magic bytes are not REDIS: {sanity_check}"
             )
         try:
-            version_number = int.from_bytes(self.data[5:9], byteorder="little")
+            # check version number
+            int.from_bytes(self.data[5:9], byteorder="little")
         except:
             raise Exception(f"Invalid RDB file, got version number {self.data[5:9]}")
         while self.idx < len(self.data):
@@ -34,9 +35,6 @@ class RdbFile:
 
     def read_length_encoding(self) -> tuple[int, int, int]:
         length_encoding = self.read(1)
-        # logger.info(
-        #     f"read_length_encoding {length_encoding=}, {bin(int.from_bytes(length_encoding))=}"
-        # )
         return (
             int.from_bytes(length_encoding) >> 7,
             (int.from_bytes(length_encoding) >> 6) & 1,
@@ -45,7 +43,6 @@ class RdbFile:
 
     def read_length_encoded_integer(self) -> tuple[int, bool]:
         le0, le1, rest = self.read_length_encoding()
-        # logger.info(f"read_length_encoded_integer {le0=}, {le1=}, {rest=}, {bin(rest)=}")
         if le0 == 0 and le1 == 0:
             return rest, False
         elif le0 == 0 and le1 == 1:
@@ -68,10 +65,8 @@ class RdbFile:
         length, is_int = self.read_length_encoded_integer()
         val = self.read(length)
         if is_int:
-            # logger.info(f"read_length_encoded_string {int.from_bytes(val)=}")
             return str(int.from_bytes(val)).encode()
         else:
-            # logger.info(f"read_length_encoded_string {val=}")
             return val
 
     def parse(self):
@@ -79,14 +74,13 @@ class RdbFile:
         op_code = self.read(1)
         match op_code:
             case b"\xff":
-                # EOF, check 8 bit crc
+                # EOF, remaining is 8 bit crc
                 self.idx = len(self.data)
                 return
             case b"\xfe":
                 # database selector
                 db_selector = self.read_length_encoded_integer()[0]
                 self.buffer.append(("db", db_selector))
-                # logger.info(f"got db selector {db_selector=}")
             case b"\xfd":
                 # expiry time in s
                 expiry = datetime.datetime.fromtimestamp(
@@ -95,7 +89,6 @@ class RdbFile:
                 expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))
                 self.key_values[key.decode()] = (value.decode(), expiry)
-                logger.info(f"got expiry s kv {expiry=}, {key=}, {value=}")
             case b"\xfc":
                 # expiry time in ms
                 expiry = datetime.datetime.fromtimestamp(
@@ -104,7 +97,6 @@ class RdbFile:
                 expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))
                 self.key_values[key.decode()] = (value.decode(), expiry)
-                logger.info(f"got expiry ms kv {expiry=}, {key=}, {value=}")
             case b"\xfb":
                 # resizedb
                 db_hash_table_size = self.read_length_encoded_integer()[0]
@@ -112,20 +104,16 @@ class RdbFile:
                 self.buffer.append(
                     ("resizedb", db_hash_table_size, expiry_hash_table_size)
                 )
-                # logger.info(f"got resizedb {db_hash_table_size=}, {expiry_hash_table_size=}")
             case b"\xfa":
                 # aux field
                 aux_key = self.read_length_encoded_string()
                 aux_value = self.read_length_encoded_string()
                 self.buffer.append(("aux", aux_key, aux_value))
-                # logger.info(f"parse aux field {aux_key=}, {aux_value=}")
             case _:
                 # type, key, value
                 key, value = self.parse_kv(op_code)
                 self.key_values[key.decode()] = (value.decode(), None)
-                # logger.info(f"parse string kv {key=}, {value=}")
                 return
-        # logger.info(f"{self.idx=}, {len(self.data)=}, {self.buffer=}")
 
     def parse_kv(self, val_type: bytes) -> tuple[bytes, bytes]:
         key = self.read_length_encoded_string()
