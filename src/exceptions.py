@@ -4,3 +4,7 @@ class ValidationError(Exception):
 
 class ParseError(Exception):
     pass
+
+
+class RequestCraftError(Exception):
+    pass

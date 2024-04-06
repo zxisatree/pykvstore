@@ -41,21 +41,18 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.master_conn.settimeout(constants.CONN_TIMEOUT)
         self.master_conn.connect((self.master_ip, int(self.master_port)))
-        self.master_conn.sendall(
-            data_types.RespArray([data_types.RespBulkString(b"ping")]).encode()
-        )
+
+        self.master_conn.sendall(commands.craft_command("PING").encode())
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         logger.info(f"Replica sent ping, got {data=}")
         # check if we get PONG
         if data != commands.PingCommand(b"").execute(None, None, None):
             logger.info("Failed to connect to master")
+            return
+
         self.master_conn.sendall(
-            data_types.RespArray(
-                [
-                    data_types.RespBulkString(b"REPLCONF"),
-                    data_types.RespBulkString(b"listening-port"),
-                    data_types.RespBulkString(str(self.port).encode()),
-                ]
+            commands.craft_command(
+                "REPLCONF", "listening-port", str(self.port)
             ).encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
@@ -63,28 +60,20 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         # check if we get OK
         if data != constants.OK_SIMPLE_RESP_STRING:
             logger.info("Failed to connect to master")
+            return
+
         self.master_conn.sendall(
-            data_types.RespArray(
-                [
-                    data_types.RespBulkString(b"REPLCONF"),
-                    data_types.RespBulkString(b"capa"),
-                    data_types.RespBulkString(b"psync2"),
-                ]
-            ).encode()
+            commands.craft_command("REPLCONF", "capa", "psync2").encode()
         )
         data = self.master_conn.recv(constants.BUFFER_SIZE)
         logger.info(f"Replica sent REPLCONF 2, got {data=}")
         # check if we get OK
         if data != constants.OK_SIMPLE_RESP_STRING:
             logger.info("Failed to connect to master")
+            return
+
         self.master_conn.sendall(
-            data_types.RespArray(
-                [
-                    data_types.RespBulkString(b"PSYNC"),
-                    data_types.RespBulkString(self.master_replid.encode()),
-                    data_types.RespBulkString(str(-1).encode()),
-                ]
-            ).encode()
+            commands.craft_command("PSYNC", self.master_replid, str(-1)).encode()
         )
         logger.info(f"Replica sent PSYNC")
         handshake_step = 0
@@ -92,27 +81,19 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         while True:
             logger.info("Replica waiting for master...")
             data = self.master_conn.recv(constants.BUFFER_SIZE)
-            # logger.info(f"from master: raw {data=}")
+            logger.info(f"Replica from master: raw {data=}")
             if not data:
-                # logger.info("Replica breaking")
+                logger.info("Replica breaking")
                 break
+
             cmds = codec.parse_cmd(data)
-            logger.info(f"replica {cmds=}")
-            if isinstance(cmds, list):
-                for cmd in cmds:
-                    self.respond_to_master(cmd, db)
-                    if handshake_step != 2:
-                        handshake_step = self.handle_handshake_psync(
-                            handshake_step, cmd
-                        )
-                    else:
-                        # need to update offset based on cmd in list, not based on full data
-                        self.master_repl_offset += len(cmd.raw_cmd)
-            else:
-                self.respond_to_master(cmds, db)
+            logger.info(f"Replica {cmds=}")
+            for cmd in cmds:
+                self.respond_to_master(cmd, db)
                 if handshake_step != 2:
                     handshake_step = self.handle_handshake_psync(handshake_step, cmd)
                 else:
+                    # need to update offset based on cmd in list, not based on full data
                     self.master_repl_offset += len(cmd.raw_cmd)
 
     def handle_handshake_psync(

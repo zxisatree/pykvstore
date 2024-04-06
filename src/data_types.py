@@ -43,7 +43,7 @@ class RespSimpleString(RespDataType):
     @staticmethod
     def decode(data: bytes, pos: int) -> tuple["RespSimpleString", int]:
         start = pos
-        while pos < len(data) and not codec.is_sep(data, pos):
+        while pos < len(data) and not is_sep(data, pos):
             pos += 1
         if pos >= len(data):
             logger.info("Invalid RESP simple string, missing \\r\\n separator")
@@ -95,7 +95,7 @@ class RespArray(RespDataType):
     @staticmethod
     def decode(data: bytes, pos: int) -> tuple["RespArray", int]:
         start = pos + 1
-        while pos < len(data) and not codec.is_sep(data, pos):
+        while pos < len(data) and not is_sep(data, pos):
             pos += 1
         if pos >= len(data):
             logger.info("Invalid RESP array, missing \\r\\n separator")
@@ -104,7 +104,7 @@ class RespArray(RespDataType):
 
         elements: list[RespDataType] = []
         for _ in range(array_len):
-            element, pos = codec.parse(data, pos)
+            element, pos = codec.dispatch(data, pos)
             elements.append(element)
         assert pos <= len(data)
         return (RespArray(elements), pos)
@@ -139,7 +139,7 @@ class RespBulkString(RespDataType):
     @staticmethod
     def decode(data: bytes, pos: int) -> tuple["RespBulkString", int]:
         start = pos + 1
-        while pos < len(data) and not codec.is_sep(data, pos):
+        while pos < len(data) and not is_sep(data, pos):
             pos += 1
         if pos >= len(data):
             logger.info("Invalid RESP bulk string, missing \\r\\n separator")
@@ -179,7 +179,7 @@ class RespInteger(RespDataType):
     @staticmethod
     def decode(data: bytes, pos: int) -> tuple["RespInteger", int]:
         start = pos + 1
-        while pos < len(data) and not codec.is_sep(data, pos):
+        while pos < len(data) and not is_sep(data, pos):
             pos += 1
         if pos >= len(data):
             logger.info("Invalid RESP integer, missing \\r\\n separator")
@@ -214,7 +214,7 @@ class RespSimpleError(RespDataType):
     @staticmethod
     def decode(data: bytes, pos: int) -> tuple["RespSimpleError", int]:
         start = pos + 1
-        while pos < len(data) and not codec.is_sep(data, pos):
+        while pos < len(data) and not is_sep(data, pos):
             pos += 1
         if pos >= len(data):
             logger.info("Invalid RESP simple error, missing \\r\\n separator")
@@ -252,7 +252,7 @@ class RespRdbFile(RespDataType):
     @staticmethod
     def decode(data: bytes, pos: int) -> tuple["RespRdbFile", int]:
         start = pos + 1
-        while pos < len(data) and not codec.is_sep(data, pos):
+        while pos < len(data) and not is_sep(data, pos):
             pos += 1
         if pos >= len(data):
             logger.info("Invalid RDB file, missing \\r\\n separator")
@@ -275,13 +275,22 @@ def decode_bulk_string_or_rdb(data: bytes, pos: int) -> tuple[RespDataType, int]
     # check if the length ends with a sep
     orig = pos
     start = pos + 1
-    while pos < len(data) and not codec.is_sep(data, pos):
+    while pos < len(data) and not is_sep(data, pos):
         pos += 1
     if pos >= len(data):
         logger.info("Invalid bulk string/RDB file, missing \\r\\n separator")
     bulk_str_len = int(data[start:pos])
     pos += 2 + bulk_str_len
-    if codec.is_sep(data, pos):
+    if is_sep(data, pos):
         return RespBulkString.decode(data, orig)
     else:
         return RespRdbFile.decode(data, orig)
+
+
+def is_sep(data: bytes, pos: int) -> bool:
+    # using slices to index data to get bytes instead of ints
+    return (
+        pos + 1 < len(data)
+        and data[pos : pos + 1] == b"\r"
+        and data[pos + 1 : pos + 2] == b"\n"
+    )

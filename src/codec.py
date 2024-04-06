@@ -10,7 +10,7 @@ def parse_cmd(cmd: bytes) -> list[commands.Command]:
     pos = 0
     while pos < len(cmd):
         orig = pos
-        resp_data, pos = parse(cmd, pos)
+        resp_data, pos = dispatch(cmd, pos)
         logger.info(f"Codec.parse {resp_data=}, {pos=}")
         if isinstance(resp_data, data_types.RespArray):
             final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
@@ -67,7 +67,6 @@ def parse_resp_cmd(
                     return commands.ReplConfGetAckCommand(raw_cmd)
                 elif cmd_str2.data.upper() == b"ACK":
                     return commands.ReplConfAckCommand(raw_cmd)
-                return commands.ReplConfCommand(raw_cmd)
             return commands.ReplConfCommand(raw_cmd)
         elif cmd_str == b"WAIT":
             replica_count = data_types.RespBulkString.validate(resp_data[1])
@@ -126,8 +125,7 @@ def parse_resp_cmd(
         return commands.NoOp(raw_cmd)
 
 
-def parse(cmd: bytes, pos: int) -> tuple[data_types.RespDataType, int]:
-    # Dispatches parsing to the relevant methods
+def dispatch(cmd: bytes, pos: int) -> tuple[data_types.RespDataType, int]:
     data_type = cmd[pos : pos + 1]
     if data_type == b"*":
         return data_types.RespArray.decode(cmd, pos)
@@ -138,12 +136,3 @@ def parse(cmd: bytes, pos: int) -> tuple[data_types.RespDataType, int]:
     else:
         logger.info(f"Raising exception: Unsupported data type {data_type}")
         raise Exception(f"Unsupported data type {data_type}")
-
-
-def is_sep(data: bytes, pos: int) -> bool:
-    # using slices to index data to get bytes instead of ints
-    return (
-        pos + 1 < len(data)
-        and data[pos : pos + 1] == b"\r"
-        and data[pos + 1 : pos + 2] == b"\n"
-    )
