@@ -80,7 +80,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             for key, value in self.store.items():
                 if not isinstance(value, list):
                     _, expiry = value
-                    logger.error(f"{expiry=}")
                     if expiry and expiry < datetime.now():
                         del self.store[key]
 
@@ -188,28 +187,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             end_stream_id = StreamId(end)
 
             lo = bisect.bisect_right(value, start_stream_id, key=lambda x: x[0])
-            logger.error(f"{lo=}")
             if lo >= len(value):
                 return data_types.RespArray([]).encode()
             hi = bisect.bisect_right(value, end_stream_id, key=lambda x: x[0])
-            logger.error(f"{hi=}")
             if hi >= len(value):
                 hi = len(value)
-
-            # lo, hi = None, None
-            # for i in range(len(value)):
-            #     if value[i][0] > start_stream_id:
-            #         lo = i
-            #         break
-            # if lo is None:
-            #     return data_types.RespArray([]).encode()
-            # for i in range(lo, len(value)):
-            #     if value[i][0] > end_stream_id:
-            #         hi = i
-            #         break
-            # logger.error(f"{lo=}, {hi=}. {end_stream_id=}")
-            # if hi is None:
-            #     hi = len(value)
 
             res = []
             for i in range(lo - 1 if lo != 0 else 0, hi):
@@ -266,18 +248,24 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     logger.info(f"{original_lens[i]}")
                     id = str(value[original_lens[i] - 1][0]) if value else "0-0"
                 stream_id = StreamId(id)
-                lo = None
-                range_start = original_lens[i] if timeout is not None else 0
-                logger.info(
-                    f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {value=}"
-                )
-                for i in range(range_start, len(value)):
-                    if value[i][0] > stream_id:
-                        lo = i
-                        break
-                logger.info(f"{lo=}, {list(map(lambda x: x[0], value[range_start:]))=}")
-                if lo is None:
+
+                lo = bisect.bisect_right(value, stream_id, key=lambda x: x[0])
+                if lo >= len(value):
                     return constants.NULL_BULK_RESP_STRING.encode()
+
+                # lo = None
+                # range_start = original_lens[i] if timeout is not None else 0
+                # logger.info(
+                #     f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {value=}"
+                # )
+                # for i in range(range_start, len(value)):
+                #     if value[i][0] > stream_id:
+                #         lo = i
+                #         break
+                # logger.info(f"{lo=}, {list(map(lambda x: x[0], value[range_start:]))=}")
+                # if lo is None:
+                #     return constants.NULL_BULK_RESP_STRING.encode()
+
                 inter: list[data_types.RespDataType] = []
                 for i in range(lo, len(value)):
                     flattened_kvs = []
@@ -310,7 +298,6 @@ class StreamId:
         self.validate(milliseconds_time, seq_no)
         self.milliseconds_time = milliseconds_time
         self.seq_no = seq_no
-        logger.error(f"{self=}")
 
     def validate(self, milliseconds_time: str, seq_no: str) -> bool:
         if milliseconds_time == "0" and seq_no == "0":
