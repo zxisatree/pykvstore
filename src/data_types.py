@@ -159,6 +159,12 @@ class RespBulkString(RespDataType):
             )
         return that
 
+    @staticmethod
+    def safe_validate(that) -> tuple["RespBulkString", None] | tuple[None, str]:
+        if not isinstance(that, RespBulkString):
+            return that, f"Expected RespBulkString, got {type(that)}"
+        return that, None
+
 
 class RespInteger(RespDataType):
     def __init__(self, val: int):

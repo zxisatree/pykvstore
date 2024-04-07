@@ -30,103 +30,99 @@ def parse_cmd(cmd: bytes) -> list[commands.Command]:
 def parse_resp_cmd(
     resp_data: data_types.RespArray, cmd: bytes, start: int, end: int
 ) -> commands.Command:
-    try:
-        cmd_str = data_types.RespBulkString.validate(resp_data[0]).data.upper()
-        raw_cmd = cmd[start:end]
-        if cmd_str == b"PING":
-            return commands.PingCommand(raw_cmd)
-        elif cmd_str == b"ECHO":
-            msg = data_types.RespBulkString.validate(resp_data[1])
-            return commands.EchoCommand(raw_cmd, msg)
-        elif cmd_str == b"SET":
-            key = data_types.RespBulkString.validate(resp_data[1])
-            value = data_types.RespBulkString.validate(resp_data[2])
-            if len(resp_data) <= 3:
-                return commands.SetCommand(raw_cmd, key, value, None)
-            px_cmd = data_types.RespBulkString.validate(resp_data[3])
-            expiry = data_types.RespBulkString.validate(resp_data[4])
-            commands.SetCommand.validate_px(px_cmd)
-            return commands.SetCommand(
-                raw_cmd,
-                key,
-                value,
-                datetime.now() + timedelta(milliseconds=int(expiry.data)),
+    resp_elements: list[data_types.RespBulkString] = []
+    for element in resp_data.elements:
+        result = data_types.RespBulkString.safe_validate(element)
+        if result[1] is not None:
+            logger.error(
+                f"Unsupported command {cmd[start:end]}, {element} is not a bulk string"
             )
-        elif cmd_str == b"GET":
-            key = data_types.RespBulkString.validate(resp_data[1])
-            return commands.GetCommand(raw_cmd, key)
-        elif cmd_str == b"COMMAND":
-            return commands.CommandCommand(raw_cmd)
-        elif cmd_str == b"INFO":
-            # should check for next word, but only replication is supported
-            return commands.InfoCommand(raw_cmd)
-        elif cmd_str == b"REPLCONF":
-            if len(resp_data) >= 3:
-                cmd_str2 = data_types.RespBulkString.validate(resp_data[1])
-                if cmd_str2.data.upper() == b"GETACK":
-                    return commands.ReplConfGetAckCommand(raw_cmd)
-                elif cmd_str2.data.upper() == b"ACK":
-                    return commands.ReplConfAckCommand(raw_cmd)
-            return commands.ReplConfCommand(raw_cmd)
-        elif cmd_str == b"WAIT":
-            replica_count = data_types.RespBulkString.validate(resp_data[1])
-            timeout = data_types.RespBulkString.validate(resp_data[2])
-            return commands.WaitCommand(
-                raw_cmd, int(replica_count.data), int(timeout.data)
-            )
-        elif cmd_str == b"PSYNC":
-            return commands.PsyncCommand(raw_cmd)
-        elif cmd_str == b"CONFIG":
-            key = data_types.RespBulkString.validate(resp_data[2])
-            return commands.ConfigGetCommand(raw_cmd, key.data)
-        elif cmd_str == b"KEYS":
-            pattern = data_types.RespBulkString.validate(resp_data[1])
-            return commands.KeysCommand(raw_cmd, pattern.data)
-        elif cmd_str == b"TYPE":
-            key = data_types.RespBulkString.validate(resp_data[1])
-            return commands.TypeCommand(raw_cmd, key.data)
-        elif cmd_str == b"XADD":
-            stream_key = data_types.RespBulkString.validate(resp_data[1])
-            return commands.XaddCommand(
-                raw_cmd, stream_key.data, resp_data.elements[2:]
-            )
-        elif cmd_str == b"XRANGE":
-            key = data_types.RespBulkString.validate(resp_data[1])
-            xrange_start = data_types.RespBulkString.validate(resp_data[2])
-            xrange_end = data_types.RespBulkString.validate(resp_data[3])
-            return commands.XrangeCommand(
-                raw_cmd,
-                key.data,
-                xrange_start.data.decode(),
-                xrange_end.data.decode(),
-            )
-        elif cmd_str == b"XREAD":
-            # first argument should be "streams"
-            streams = data_types.RespBulkString.validate(resp_data[1])
-            key_id_start_idx = 2
-            is_block = False
-            if streams.data.upper() == b"BLOCK":
-                is_block = True
-                key_id_start_idx = 4
-            remaining_len = len(resp_data) - key_id_start_idx
-            elements = [
-                data_types.RespBulkString.validate(e).data.decode()
-                for e in resp_data.elements[key_id_start_idx:]
-            ]
-            keys = elements[: remaining_len // 2]
-            ids = elements[remaining_len // 2 :]
-            if is_block:
-                timeout = data_types.RespBulkString.validate(resp_data[2])
-                return commands.XreadCommand(
-                    raw_cmd, keys, ids, int(timeout.data.decode())
-                )
-            else:
-                return commands.XreadCommand(raw_cmd, keys, ids)
+            return commands.NoOp(cmd[start:end])
+        resp_elements.append(result[0])
+
+    cmd_str = resp_elements[0].data.upper()
+    raw_cmd = cmd[start:end]
+    if cmd_str == b"PING":
+        return commands.PingCommand(raw_cmd)
+    elif cmd_str == b"ECHO":
+        msg = resp_elements[1]
+        return commands.EchoCommand(raw_cmd, msg)
+    elif cmd_str == b"SET":
+        key = resp_elements[1]
+        value = resp_elements[2]
+        if len(resp_data) <= 3:
+            return commands.SetCommand(raw_cmd, key, value, None)
+        px_cmd = resp_elements[3]
+        expiry = resp_elements[4]
+        commands.SetCommand.validate_px(px_cmd)
+        return commands.SetCommand(
+            raw_cmd,
+            key,
+            value,
+            datetime.now() + timedelta(milliseconds=int(expiry.data)),
+        )
+    elif cmd_str == b"GET":
+        key = resp_elements[1]
+        return commands.GetCommand(raw_cmd, key)
+    elif cmd_str == b"COMMAND":
+        return commands.CommandCommand(raw_cmd)
+    elif cmd_str == b"INFO":
+        # should check for next word, but only replication is supported
+        return commands.InfoCommand(raw_cmd)
+    elif cmd_str == b"REPLCONF":
+        if len(resp_data) >= 3:
+            cmd_str2 = resp_elements[1]
+            if cmd_str2.data.upper() == b"GETACK":
+                return commands.ReplConfGetAckCommand(raw_cmd)
+            elif cmd_str2.data.upper() == b"ACK":
+                return commands.ReplConfAckCommand(raw_cmd)
+        return commands.ReplConfCommand(raw_cmd)
+    elif cmd_str == b"WAIT":
+        replica_count = resp_elements[1]
+        timeout = resp_elements[2]
+        return commands.WaitCommand(raw_cmd, int(replica_count.data), int(timeout.data))
+    elif cmd_str == b"PSYNC":
+        return commands.PsyncCommand(raw_cmd)
+    elif cmd_str == b"CONFIG":
+        key = resp_elements[2]
+        return commands.ConfigGetCommand(raw_cmd, key.data)
+    elif cmd_str == b"KEYS":
+        pattern = resp_elements[1]
+        return commands.KeysCommand(raw_cmd, pattern.data)
+    elif cmd_str == b"TYPE":
+        key = resp_elements[1]
+        return commands.TypeCommand(raw_cmd, key.data)
+    elif cmd_str == b"XADD":
+        stream_key = resp_elements[1]
+        return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])
+    elif cmd_str == b"XRANGE":
+        key = resp_elements[1]
+        xrange_start = resp_elements[2]
+        xrange_end = resp_elements[3]
+        return commands.XrangeCommand(
+            raw_cmd,
+            key.data,
+            xrange_start.data.decode(),
+            xrange_end.data.decode(),
+        )
+    elif cmd_str == b"XREAD":
+        # first argument should be "streams"
+        streams = resp_elements[1]
+        key_id_start_idx = 2
+        is_block = False
+        if streams.data.upper() == b"BLOCK":
+            is_block = True
+            key_id_start_idx = 4
+        remaining_len = len(resp_data) - key_id_start_idx
+        keys = [k.data.decode() for k in resp_elements[: remaining_len // 2]]
+        ids = [i.data.decode() for i in resp_elements[remaining_len // 2 :]]
+        if is_block:
+            timeout = resp_elements[2]
+            return commands.XreadCommand(raw_cmd, keys, ids, int(timeout.data.decode()))
         else:
-            return commands.RdbFileCommand(raw_cmd)
-    except Exception:
-        logger.error(f"Unsupported command {cmd_str}, {type(cmd_str)}")
-        return commands.NoOp(raw_cmd)
+            return commands.XreadCommand(raw_cmd, keys, ids)
+    else:
+        return commands.RdbFileCommand(raw_cmd)
 
 
 def dispatch(cmd: bytes, pos: int) -> tuple[data_types.RespDataType, int]:

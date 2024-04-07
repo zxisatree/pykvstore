@@ -385,7 +385,7 @@ class TypeCommand(Command):
 
 class XaddCommand(Command):
     def __init__(
-        self, raw_cmd: bytes, stream_key: bytes, data: list[data_types.RespDataType]
+        self, raw_cmd: bytes, stream_key: bytes, data: list[data_types.RespBulkString]
     ):
         self._raw_cmd = raw_cmd
         self.stream_key = stream_key
@@ -398,21 +398,15 @@ class XaddCommand(Command):
         conn,
     ) -> bytes:
         raw_stream_entry_id = self.data[0]
-        if not isinstance(raw_stream_entry_id, data_types.RespBulkString):
-            raise Exception(f"Invalid stream entry id {raw_stream_entry_id}")
         stream_entry_id = raw_stream_entry_id.data
         err = db.validate_stream_id(self.stream_key.decode(), stream_entry_id.decode())
-        if err:
+        if err is not None:
             return data_types.RespSimpleError(err).encode()
 
         kv_dict = {}
         for i in range(1, len(self.data), 2):
             stream_key = self.data[i]
             stream_value = self.data[i + 1]
-            if not isinstance(stream_key, data_types.RespBulkString):
-                raise Exception(f"Invalid stream entry field {stream_key}")
-            if not isinstance(stream_value, data_types.RespBulkString):
-                raise Exception(f"Invalid stream entry value {stream_value}")
             kv_dict[stream_key.data.decode()] = stream_value.data.decode()
         logger.info(f"{stream_entry_id=}, {kv_dict=}")
         processed_stream_id = db.xadd(
