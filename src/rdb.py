@@ -1,5 +1,6 @@
 import datetime
 
+import constants
 from logs import logger
 
 
@@ -9,22 +10,24 @@ class RdbFile:
         self.idx = 9  # ignore magic string and version number
         self.buffer = []
         self.key_values: dict[str, tuple[str, datetime.datetime | None]] = {}
-        self.read_rdb()
+        err = self.read_rdb()
+        if err is not None:
+            logger.error(f"Failed to read RDB file with error {err}, defaulting to empty file")
+            self.data = constants.EMPTY_RDB_FILE
+            self.read_rdb()
 
     def __len__(self) -> int:
         return len(self.data)
 
-    def read_rdb(self):
+    def read_rdb(self) -> str | None:
         sanity_check = self.data[0:5]
         if sanity_check != b"REDIS":
-            raise Exception(
-                f"Invalid RDB file, magic bytes are not REDIS: {sanity_check}"
-            )
+            return f"Invalid RDB file, magic bytes are not REDIS: {sanity_check}"
         try:
             # check version number
             int.from_bytes(self.data[5:9], byteorder="little")
         except:
-            raise Exception(f"Invalid RDB file, got version number {self.data[5:9]}")
+            return f"Invalid RDB file, got version number: {self.data[5:9]}"
         while self.idx < len(self.data):
             self.parse()
 

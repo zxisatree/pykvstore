@@ -240,7 +240,6 @@ class RespSimpleError(RespDataType):
 
 class RespRdbFile(RespDataType):
     def __init__(self, data: bytes):
-        """Throws an exception if file is invalid"""
         self.data = rdb.RdbFile(data)
 
     def __len__(self) -> int:
