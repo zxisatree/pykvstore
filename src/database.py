@@ -131,40 +131,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             cur_value = self.store[key]
             if not isinstance(cur_value, list):
                 raise Exception(f"key {key} is not a stream")
-            processed_id = self.process_stream_id(
+            processed_id = StreamId.generate_stream_id(
                 id, str(cur_value[-1][0]) if cur_value else None
             )
-            cur_value.append((StreamId(processed_id), value))
-            return processed_id
-
-    def process_stream_id(self, id: str, last_id: str | None) -> str:
-        if id == "*":
-            # milliseconds_time should be current time in milliseconds
-            milliseconds_time = str(int(datetime.now().timestamp() * 1000))
-            if not last_id:
-                return f"{milliseconds_time}-0"
-            splitted_last = last_id.split("-")
-            if splitted_last[0] == milliseconds_time:
-                return f"{milliseconds_time}-{int(splitted_last[1]) + 1}"
-            return f"{milliseconds_time}-0"
-
-        splitted = id.split("-")
-        if len(splitted) != 2:
-            raise Exception(f"Invalid stream id {id}")
-        milliseconds_time, seq_no = splitted
-        if not last_id:
-            if seq_no == "*":
-                seq_no = "1" if milliseconds_time == "0" else "0"
-            return f"{milliseconds_time}-{seq_no}"
-
-        splitted_last = last_id.split("-")
-        last_milliseconds_time, last_seq_no = splitted_last
-        if seq_no == "*":
-            if milliseconds_time == last_milliseconds_time:
-                seq_no = str(int(last_seq_no) + 1)
-            else:
-                seq_no = "1" if milliseconds_time == "0" else "0"
-        return f"{milliseconds_time}-{seq_no}"
+            cur_value.append((processed_id, value))
+            return str(processed_id)
 
     def xrange(self, key: str, start: str, end: str) -> bytes:
         with self.lock:
@@ -290,6 +261,36 @@ class StreamId:
             logger.info(f"Invalid stream id {milliseconds_time}-{seq_no}")
             return False
         return True
+
+    @staticmethod
+    def generate_stream_id(id: str, last_id: str | None) -> "StreamId":
+        if id == "*":
+            # milliseconds_time should be current time in milliseconds
+            milliseconds_time = str(int(datetime.now().timestamp() * 1000))
+            if not last_id:
+                return StreamId(f"{milliseconds_time}-0")
+            splitted_last = last_id.split("-")
+            if splitted_last[0] == milliseconds_time:
+                return StreamId(f"{milliseconds_time}-{int(splitted_last[1]) + 1}")
+            return StreamId(f"{milliseconds_time}-0")
+
+        splitted = id.split("-")
+        if len(splitted) != 2:
+            raise Exception(f"Invalid stream id {id}")
+        milliseconds_time, seq_no = splitted
+        if not last_id:
+            if seq_no == "*":
+                seq_no = "1" if milliseconds_time == "0" else "0"
+            return StreamId(f"{milliseconds_time}-{seq_no}")
+
+        splitted_last = last_id.split("-")
+        last_milliseconds_time, last_seq_no = splitted_last
+        if seq_no == "*":
+            if milliseconds_time == last_milliseconds_time:
+                seq_no = str(int(last_seq_no) + 1)
+            else:
+                seq_no = "1" if milliseconds_time == "0" else "0"
+        return StreamId(f"{milliseconds_time}-{seq_no}")
 
     def __repr__(self) -> str:
         return f"StreamId({self.milliseconds_time}-{self.seq_no})"
