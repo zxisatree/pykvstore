@@ -130,7 +130,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 self.store[key] = []
             cur_value = self.store[key]
             if not isinstance(cur_value, list):
-                raise Exception(f"stream key {key} is not a stream")
+                raise Exception(f"key {key} is not a stream")
             processed_id = self.process_stream_id(
                 id, str(cur_value[-1][0]) if cur_value else None
             )
@@ -220,7 +220,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             logger.info(f"{original_lens=}")
             if timeout != 0:
                 time.sleep(timeout / 1e3)
-                logger.info(f"timeout complete")
             else:
                 while True:
                     time.sleep(0.5)
@@ -252,19 +251,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 lo = bisect.bisect_right(value, stream_id, key=lambda x: x[0])
                 if lo >= len(value):
                     return constants.NULL_BULK_RESP_STRING.encode()
-
-                # lo = None
-                # range_start = original_lens[i] if timeout is not None else 0
-                # logger.info(
-                #     f"{stream_key=}, {id=}, {stream_id=} {range_start=}, {len(value)=}, {value=}"
-                # )
-                # for i in range(range_start, len(value)):
-                #     if value[i][0] > stream_id:
-                #         lo = i
-                #         break
-                # logger.info(f"{lo=}, {list(map(lambda x: x[0], value[range_start:]))=}")
-                # if lo is None:
-                #     return constants.NULL_BULK_RESP_STRING.encode()
 
                 inter: list[data_types.RespDataType] = []
                 for i in range(lo, len(value)):

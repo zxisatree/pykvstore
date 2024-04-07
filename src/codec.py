@@ -109,12 +109,16 @@ def parse_resp_cmd(
                 is_block = True
                 key_id_start_idx = 4
             remaining_len = len(resp_data) - key_id_start_idx
-            # TODO: fix type checking
-            keys = list(map(lambda x: x.data.decode(), resp_data.elements[key_id_start_idx : key_id_start_idx + remaining_len // 2]))  # type: ignore
-            ids = list(map(lambda x: x.data.decode(), resp_data.elements[key_id_start_idx + remaining_len // 2 :]))  # type: ignore
+            elements = [
+                data_types.RespBulkString.validate(e).data.decode()
+                for e in resp_data.elements[key_id_start_idx:]
+            ]
+            keys = elements[: remaining_len // 2]
+            ids = elements[remaining_len // 2 :]
             if is_block:
+                timeout = data_types.RespBulkString.validate(resp_data[2])
                 return commands.XreadCommand(
-                    raw_cmd, keys, ids, int(resp_data[2].data.decode())  # type: ignore
+                    raw_cmd, keys, ids, int(timeout.data.decode())
                 )
             else:
                 return commands.XreadCommand(raw_cmd, keys, ids)
