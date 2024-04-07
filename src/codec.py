@@ -114,8 +114,18 @@ def parse_resp_cmd(
             is_block = True
             key_id_start_idx = 4
         remaining_len = len(resp_data) - key_id_start_idx
-        keys = [k.data.decode() for k in resp_elements[: remaining_len // 2]]
-        ids = [i.data.decode() for i in resp_elements[remaining_len // 2 :]]
+        keys = [
+            k.data.decode()
+            for k in resp_elements[
+                key_id_start_idx : key_id_start_idx + remaining_len // 2
+            ]
+        ]
+        ids = [
+            i.data.decode()
+            for i in resp_elements[key_id_start_idx + remaining_len // 2 :]
+        ]
+        logger.error(f"{resp_elements=}")
+        logger.error(f"{keys=}, {ids=}, {is_block=}, {key_id_start_idx=}")
         if is_block:
             timeout = resp_elements[2]
             return commands.XreadCommand(raw_cmd, keys, ids, int(timeout.data.decode()))
