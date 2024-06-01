@@ -111,9 +111,11 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
-        if isinstance(cmd, commands.ReplConfGetAckCommand):
-            if isinstance(executed, bytes):  # impossible to get list here
-                self.master_conn.sendall(executed)
+        if isinstance(cmd, commands.ReplConfGetAckCommand) and isinstance(
+            executed, bytes
+        ):
+            # impossible to get list here for executed after checking cmd
+            self.master_conn.sendall(executed)
 
     def add_slave(self, slave: socket.socket):
         self.slaves.append(slave)

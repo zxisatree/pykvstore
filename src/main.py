@@ -7,7 +7,7 @@ import threading
 from sys import path
 from pathlib import Path
 
-# modify path to for test folder structure
+# modify path to call files in parent folder
 path.append(str(Path(__file__).parent))
 
 import codec

@@ -67,7 +67,7 @@ class EchoCommand(Command):
 
     @staticmethod
     def craft_request(*args: str) -> "EchoCommand":
-        if len(args) > 1:
+        if len(args) != 1:
             raise exceptions.RequestCraftError("EchoCommand takes up to 1 argument")
         return EchoCommand(
             craft_command("ECHO", *args).encode(),

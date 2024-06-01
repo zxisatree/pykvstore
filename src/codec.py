@@ -12,18 +12,19 @@ def parse_cmd(cmd: bytes) -> list[commands.Command]:
         orig = pos
         resp_data, pos = dispatch(cmd, pos)
         logger.info(f"Codec.parse {resp_data=}, {pos=}")
-        if isinstance(resp_data, data_types.RespArray):
-            final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
-        elif isinstance(resp_data, data_types.RespSimpleString):
-            # is +FULLRESYNC
-            final_cmds.append(commands.FullResyncCommand(resp_data.data))
-        elif isinstance(resp_data, data_types.RespRdbFile):
-            final_cmds.append(commands.RdbFileCommand(resp_data.data.data))
-        else:
-            logger.error(
-                f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
-            )
-            final_cmds.append(commands.NoOp(cmd[orig:pos]))
+        match resp_data:
+            case data_types.RespArray():
+                final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
+            case data_types.RespSimpleString():
+                # is +FULLRESYNC
+                final_cmds.append(commands.FullResyncCommand(resp_data.data))
+            case data_types.RespRdbFile():
+                final_cmds.append(commands.RdbFileCommand(resp_data.data.data))
+            case _:
+                logger.error(
+                    f"Unsupported command (is not array) {resp_data}, {type(resp_data)}"
+                )
+                final_cmds.append(commands.NoOp(cmd[orig:pos]))
     return final_cmds
 
 
