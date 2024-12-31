@@ -111,7 +111,7 @@ def validate_parse_args(
 
 def setup_argpaser() -> argparse.ArgumentParser:
     argparser = argparse.ArgumentParser(
-        prog="Readthis", description="Redis clone for Windows"
+        prog="PyKvStore", description="Key value database for Windows"
     )
     argparser.add_argument(
         "--port", type=int, default=6379, help="Port to listen on (default: 6379)"
