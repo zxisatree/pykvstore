@@ -441,7 +441,7 @@ class XaddCommand(Command):
         processed_stream_id = db.xadd(
             self.stream_key.decode(), stream_entry_id.decode(), kv_dict
         )
-        return data_types.RespSimpleString(processed_stream_id.encode()).encode()
+        return data_types.RespBulkString(processed_stream_id.encode()).encode()
 
     @staticmethod
     def craft_request(*args: str) -> "XaddCommand":
