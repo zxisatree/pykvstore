@@ -131,9 +131,13 @@ class IncrCommand(Command):
         self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
     ) -> bytes:
         decoded_key = self.key.decode()
-        old_value = db[decoded_key]
-        new_value = str(int(old_value) + 1)
-        expiry = db.get_expiry(decoded_key)
+        if decoded_key not in db:
+            new_value = str(1)
+            expiry = None
+        else:
+            old_value = db[decoded_key]
+            new_value = str(int(old_value) + 1)
+            expiry = db.get_expiry(decoded_key)
         db[decoded_key] = (new_value, expiry)
         return data_types.RespInteger(int(new_value)).encode()
 
