@@ -65,6 +65,9 @@ def parse_resp_cmd(
     elif cmd_str == b"GET":
         key = resp_elements[1]
         return commands.GetCommand(raw_cmd, key)
+    elif cmd_str == b"INCR":
+        key = resp_elements[1]
+        return commands.IncrCommand(raw_cmd, key)
     elif cmd_str == b"COMMAND":
         return commands.CommandCommand(raw_cmd)
     elif cmd_str == b"INFO":

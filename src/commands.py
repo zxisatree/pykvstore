@@ -118,6 +118,35 @@ class SetCommand(Command):
         )
 
 
+class IncrCommand(Command):
+    def __init__(
+        self,
+        raw_cmd: bytes,
+        key: data_types.RespBulkString,
+    ):
+        self._raw_cmd = raw_cmd
+        self.key = key.data
+
+    def execute(
+        self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
+    ) -> bytes:
+        decoded_key = self.key.decode()
+        old_value = db[decoded_key]
+        new_value = str(int(old_value) + 1)
+        expiry = db.get_expiry(decoded_key)
+        db[decoded_key] = (new_value, expiry)
+        return constants.OK_SIMPLE_RESP_STRING.encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "IncrCommand":
+        if len(args) != 1:
+            raise exceptions.RequestCraftError("IncrCommand takes 1 argument")
+        return IncrCommand(
+            craft_command("INCR", *args).encode(),
+            data_types.RespBulkString(args[0].encode()),
+        )
+
+
 class GetCommand(Command):
     def __init__(self, raw_cmd: bytes, key: data_types.RespBulkString):
         self._raw_cmd = raw_cmd

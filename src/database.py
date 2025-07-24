@@ -36,6 +36,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return len(self.store)
 
     def __getitem__(self, key: str) -> str | store_stream_val_type | None:
+        """Only returns the value, not the expiry"""
         with self.lock:
             if key not in self.store:
                 return None
@@ -74,6 +75,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if isinstance(value, list):
                 return "stream"
             return "string"
+
+    def get_expiry(self, key: str):
+        with self.lock:
+            if key not in self.store:
+                return None
+            value = self.store[key]
+            return value[1]
 
     def expire(self):
         with self.lock:

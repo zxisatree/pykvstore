@@ -19,7 +19,7 @@ import replicas
 
 
 def main():
-    either = validate_parse_args(setup_argpaser().parse_args())
+    either = validate_parse_args(setup_argparser().parse_args())
     if either[1] is not None:
         logger.error(f"Error parsing command line arguments: {either[1]}")
         return
@@ -39,6 +39,7 @@ def main():
                 # dirty fix for non linux to just ignore the error
                 pass
         server_socket.bind(("localhost", port))
+        logger.info(f"Started server on {port=}")
         while True:
             server_socket.listen()
             ready = select.select([server_socket], [], [], 0.5)
@@ -109,7 +110,7 @@ def validate_parse_args(
     return (args.port, None, args.dir, args.dbfilename), None
 
 
-def setup_argpaser() -> argparse.ArgumentParser:
+def setup_argparser() -> argparse.ArgumentParser:
     argparser = argparse.ArgumentParser(
         prog="Readthis", description="Redis clone for Windows"
     )
