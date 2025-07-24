@@ -135,7 +135,7 @@ class IncrCommand(Command):
         new_value = str(int(old_value) + 1)
         expiry = db.get_expiry(decoded_key)
         db[decoded_key] = (new_value, expiry)
-        return constants.OK_SIMPLE_RESP_STRING.encode()
+        return data_types.RespInteger(int(new_value)).encode()
 
     @staticmethod
     def craft_request(*args: str) -> "IncrCommand":
