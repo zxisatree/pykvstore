@@ -136,7 +136,12 @@ class IncrCommand(Command):
             expiry = None
         else:
             old_value = db[decoded_key]
-            new_value = str(int(old_value) + 1)
+            try:
+                new_value = str(int(old_value) + 1)
+            except ValueError:
+                return data_types.RespSimpleError(
+                    b"ERR value is not an integer or out of range"
+                ).encode()
             expiry = db.get_expiry(decoded_key)
         db[decoded_key] = (new_value, expiry)
         return data_types.RespInteger(int(new_value)).encode()
