@@ -96,6 +96,8 @@ def parse_resp_cmd(
     elif cmd_str == b"TYPE":
         key = resp_elements[1]
         return commands.TypeCommand(raw_cmd, key.data)
+    elif cmd_str == b"MULTI":
+        return commands.MultiCommand()
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])

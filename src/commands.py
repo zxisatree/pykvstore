@@ -133,9 +133,9 @@ class IncrCommand(Command):
         decoded_key = self.key.decode()
         old_value = db[decoded_key]
         # assume that old_value is always a str
-        if not isinstance(old_value, str):
+        if isinstance(old_value, list):
             raise exceptions.UnsupportedOperationError(
-                "INCR command is unsupported for non string values"
+                "INCR command is unsupported for stream values"
             )
         if old_value:
             try:
@@ -425,6 +425,15 @@ class TypeCommand(Command):
             craft_command("TYPE", *args).encode(),
             args[0].encode(),
         )
+
+
+class MultiCommand(Command):
+    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+        return constants.OK_SIMPLE_RESP_STRING.encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "MultiCommand":
+        return MultiCommand()
 
 
 class XaddCommand(Command):
