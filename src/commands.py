@@ -131,11 +131,13 @@ class IncrCommand(Command):
         self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
     ) -> bytes:
         decoded_key = self.key.decode()
-        if decoded_key not in db:
-            new_value = str(1)
-            expiry = None
-        else:
-            old_value = db[decoded_key]
+        old_value = db[decoded_key]
+        # assume that old_value is always a str
+        if not isinstance(old_value, str):
+            raise exceptions.UnsupportedOperationError(
+                "INCR command is unsupported for non string values"
+            )
+        if old_value:
             try:
                 new_value = str(int(old_value) + 1)
             except ValueError:
@@ -143,6 +145,10 @@ class IncrCommand(Command):
                     b"ERR value is not an integer or out of range"
                 ).encode()
             expiry = db.get_expiry(decoded_key)
+        else:
+            new_value = str(1)
+            expiry = None
+
         db[decoded_key] = (new_value, expiry)
         return data_types.RespInteger(int(new_value)).encode()
 

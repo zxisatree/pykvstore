@@ -8,3 +8,7 @@ class ParseError(Exception):
 
 class RequestCraftError(Exception):
     pass
+
+
+class UnsupportedOperationError(Exception):
+    pass

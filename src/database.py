@@ -76,11 +76,14 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return "stream"
             return "string"
 
-    def get_expiry(self, key: str):
+    def get_expiry(self, key: str) -> datetime | None:
         with self.lock:
             if key not in self.store:
                 return None
             value = self.store[key]
+            # get_expiry only works for non stream values
+            if not isinstance(value, tuple):
+                raise Exception(f"Called get_expiry on a stream key {key=}")
             return value[1]
 
     def expire(self):
