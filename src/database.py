@@ -19,8 +19,16 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     ConnIdType = tuple[int, str]
 
     lock = RLock()
+    key_store_map: dict = {}
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
+    list_store: dict[str, list] = {}
     xacts: dict[ConnIdType, list] = {}
+
+    def rpush(self, key: str, value: str) -> int:
+        if key not in self.list_store:
+            self.list_store[key] = []
+        self.list_store[key].append(value)
+        return len(self.list_store[key])
 
     def start_xact(self, conn_id: ConnIdType):
         self.xacts[conn_id] = []

@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 
+from database import Database
 import constants
 import data_types
 import exceptions
@@ -96,10 +97,10 @@ class IncrCommand(Command):
     def __init__(
         self,
         raw_cmd: bytes,
-        key: data_types.RespBulkString,
+        key: bytes,
     ):
         self._raw_cmd = raw_cmd
-        self.key = key.data
+        self.key = key
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         decoded_key = self.key.decode()
@@ -128,16 +129,13 @@ class IncrCommand(Command):
     def craft_request(*args: str) -> "IncrCommand":
         if len(args) != 1:
             raise exceptions.RequestCraftError("IncrCommand takes 1 argument")
-        return IncrCommand(
-            craft_command("INCR", *args).encode(),
-            data_types.RespBulkString(args[0].encode()),
-        )
+        return IncrCommand(craft_command("INCR", *args).encode(), args[0].encode())
 
 
 class GetCommand(Command):
-    def __init__(self, raw_cmd: bytes, key: data_types.RespBulkString):
+    def __init__(self, raw_cmd: bytes, key: bytes):
         self._raw_cmd = raw_cmd
-        self.key = key.data
+        self.key = key
 
     def execute(self, db, replica_handler, conn) -> bytes:
         if self.key.decode() in db:
@@ -154,7 +152,7 @@ class GetCommand(Command):
             raise exceptions.RequestCraftError("GetCommand takes 1 argument")
         return GetCommand(
             craft_command("GET", *args).encode(),
-            data_types.RespBulkString(args[0].encode()),
+            args[0].encode(),
         )
 
 
@@ -440,6 +438,30 @@ class DiscardCommand(Command):
     @staticmethod
     def craft_request(*args: str) -> "DiscardCommand":
         return DiscardCommand()
+
+
+class RpushCommand(Command):
+    def __init__(
+        self,
+        raw_cmd: bytes,
+        key: bytes,
+        value: bytes,
+    ):
+        self._raw_cmd = raw_cmd
+        self.key = key
+        self.value = value
+
+    def execute(self, db: Database, replica_handler, conn) -> bytes:
+        length = db.rpush(self.key.decode(), self.value.decode())
+        return data_types.RespInteger(length).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "RpushCommand":
+        if len(args) != 2:
+            raise exceptions.RequestCraftError("RpushCommand takes 2 arguments")
+        return RpushCommand(
+            craft_command("RPUSH", *args).encode(), args[0].encode(), args[1].encode()
+        )
 
 
 class XaddCommand(Command):
