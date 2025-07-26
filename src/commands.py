@@ -24,7 +24,7 @@ class Command(ABC):
         self,
         db: database.Database | None,
         replica_handler: replicas.ReplicaHandler | None,
-        conn: socket.socket | None,
+        conn: socket.socket,
     ) -> bytes | list[bytes]: ...
 
     @staticmethod
@@ -434,6 +434,21 @@ class MultiCommand(Command):
     @staticmethod
     def craft_request(*args: str) -> "MultiCommand":
         return MultiCommand()
+
+
+class ExecCommand(Command):
+    def execute(
+        self, db: database.Database, replica_handler, conn: socket.socket
+    ) -> bytes:
+        conn_id = (conn.fileno(), conn.getsockname())
+        logger.info(f"EXEC {conn_id=}")
+        if not db.does_xact_exist(conn_id):
+            return data_types.RespSimpleError(b"ERR EXEC without MULTI").encode()
+        return constants.OK_SIMPLE_RESP_STRING.encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "ExecCommand":
+        return ExecCommand()
 
 
 class XaddCommand(Command):

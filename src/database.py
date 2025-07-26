@@ -13,10 +13,19 @@ import singleton_meta
 
 
 class Database(metaclass=singleton_meta.SingletonMeta):
+    StoreStrValType = tuple[str, datetime | None]
+    StoreStreamValType = list[tuple["StreamId", dict[str, str]]]
+    ConnIdType = tuple[int, str]
+
     lock = RLock()
-    store_str_val_type = tuple[str, datetime | None]
-    store_stream_val_type = list[tuple["StreamId", dict[str, str]]]
-    store: dict[str, store_str_val_type | store_stream_val_type] = {}
+    store: dict[str, StoreStrValType | StoreStreamValType] = {}
+    xacts = {}
+
+    def start_xact(self, conn_id: ConnIdType):
+        self.xacts[conn_id] = []
+
+    def does_xact_exist(self, conn_id: ConnIdType) -> bool:
+        return conn_id in self.xacts
 
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir
@@ -35,7 +44,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         with self.lock:
             return len(self.store)
 
-    def __getitem__(self, key: str) -> str | store_stream_val_type | None:
+    def __getitem__(self, key: str) -> str | StoreStreamValType | None:
         """Only returns the value, not the expiry"""
         with self.lock:
             if key not in self.store:
@@ -47,7 +56,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return None
             return value[0]
 
-    def __setitem__(self, key: str, value: store_str_val_type):
+    def __setitem__(self, key: str, value: StoreStrValType):
         with self.lock:
             self.store[key] = value
 
