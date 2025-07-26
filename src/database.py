@@ -19,13 +19,16 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
     lock = RLock()
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
-    xacts = {}
+    xacts: dict[ConnIdType, list] = {}
 
     def start_xact(self, conn_id: ConnIdType):
         self.xacts[conn_id] = []
 
     def does_xact_exist(self, conn_id: ConnIdType) -> bool:
         return conn_id in self.xacts
+
+    def exec_xact(self, conn_id: ConnIdType) -> list:
+        return self.xacts.pop(conn_id)
 
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir

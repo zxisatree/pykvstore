@@ -428,7 +428,11 @@ class TypeCommand(Command):
 
 
 class MultiCommand(Command):
-    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+    def execute(
+        self, db: database.Database, replica_handler, conn: socket.socket
+    ) -> bytes:
+        conn_id = construct_conn_id(conn)
+        db.start_xact(conn_id)
         return constants.OK_SIMPLE_RESP_STRING.encode()
 
     @staticmethod
@@ -440,11 +444,11 @@ class ExecCommand(Command):
     def execute(
         self, db: database.Database, replica_handler, conn: socket.socket
     ) -> bytes:
-        conn_id = (conn.fileno(), conn.getsockname())
-        logger.info(f"EXEC {conn_id=}")
+        conn_id = construct_conn_id(conn)
         if not db.does_xact_exist(conn_id):
             return data_types.RespSimpleError(b"ERR EXEC without MULTI").encode()
-        return constants.OK_SIMPLE_RESP_STRING.encode()
+        cmds = db.exec_xact(conn_id)
+        return data_types.RespArray(cmds).encode()
 
     @staticmethod
     def craft_request(*args: str) -> "ExecCommand":
@@ -557,3 +561,7 @@ def craft_command(*args: str) -> data_types.RespArray:
     return data_types.RespArray(
         list(map(lambda x: data_types.RespBulkString(x.encode()), args))
     )
+
+
+def construct_conn_id(conn: socket.socket) -> database.Database.ConnIdType:
+    return (conn.fileno(), conn.getsockname())
