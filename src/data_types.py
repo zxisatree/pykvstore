@@ -23,7 +23,7 @@ class RespDataType(ABC):
     def validate(that) -> "RespDataType": ...
 
 
-class RespPlainWrapper(RespDataType):
+class RespPlainString(RespDataType):
     """Not an actual RESP data type, only used to avoid double encoding elements in arrays for MULTI/EXEC"""
 
     def __init__(self, data: bytes):

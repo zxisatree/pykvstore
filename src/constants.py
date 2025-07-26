@@ -11,6 +11,7 @@ STREAM_ID_TOO_SMALL_ERROR = "ERR The ID specified in XADD must be greater than 0
 XOP_ON_NON_STREAM_ERROR = "ERR The key provided does not refer to a stream"
 NO_OP_RESPONSE = "NOOP"
 XACT_QUEUED_RESPONSE = "+QUEUED\r\n"
+EMPTY_RESP_ARRAY = "*0\r\n"
 
 from base64 import b64decode
 

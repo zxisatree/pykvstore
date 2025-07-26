@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 
-from database import Database
 import constants
 import data_types
 import exceptions
@@ -396,6 +395,9 @@ class TypeCommand(Command):
 
 
 class MultiCommand(Command):
+    def __init__(self, raw_cmd: bytes):
+        self._raw_cmd = raw_cmd
+
     def execute(self, db, replica_handler, conn) -> bytes:
         conn_id = construct_conn_id(conn)
         db.start_xact(conn_id)
@@ -403,10 +405,13 @@ class MultiCommand(Command):
 
     @staticmethod
     def craft_request(*args: str) -> "MultiCommand":
-        return MultiCommand()
+        return MultiCommand(craft_command("MULTI", *args).encode())
 
 
 class ExecCommand(Command):
+    def __init__(self, raw_cmd: bytes):
+        self._raw_cmd = raw_cmd
+
     def execute(self, db, replica_handler, conn) -> bytes:
         conn_id = construct_conn_id(conn)
         if not db.xact_exists(conn_id):
@@ -417,17 +422,20 @@ class ExecCommand(Command):
         for response in responses:
             if isinstance(response, list):
                 for inner_response in response:
-                    flattened.append(data_types.RespPlainWrapper(inner_response))
+                    flattened.append(data_types.RespPlainString(inner_response))
             else:
-                flattened.append(data_types.RespPlainWrapper(response))
+                flattened.append(data_types.RespPlainString(response))
         return data_types.RespArray(flattened).encode()
 
     @staticmethod
     def craft_request(*args: str) -> "ExecCommand":
-        return ExecCommand()
+        return ExecCommand(craft_command("EXEC", *args).encode())
 
 
 class DiscardCommand(Command):
+    def __init__(self, raw_cmd: bytes):
+        self._raw_cmd = raw_cmd
+
     def execute(self, db, replica_handler, conn) -> bytes:
         conn_id = construct_conn_id(conn)
         if not db.xact_exists(conn_id):
@@ -437,7 +445,7 @@ class DiscardCommand(Command):
 
     @staticmethod
     def craft_request(*args: str) -> "DiscardCommand":
-        return DiscardCommand()
+        return DiscardCommand(craft_command("DISCARD", *args).encode())
 
 
 class RpushCommand(Command):
@@ -451,7 +459,7 @@ class RpushCommand(Command):
         self.key = key
         self.values = values
 
-    def execute(self, db: Database, replica_handler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         length = db.rpush(self.key.decode(), self.values)
         return data_types.RespInteger(length).encode()
 
@@ -463,6 +471,37 @@ class RpushCommand(Command):
             craft_command("RPUSH", *args).encode(),
             args[0].encode(),
             [arg.encode() for arg in args],
+        )
+
+
+class LrangeCommand(Command):
+    def __init__(self, raw_cmd: bytes, key: bytes, start: int, stop: int):
+        self._raw_cmd = raw_cmd
+        self.key = key.decode()
+        self.start = start
+        self.stop = stop
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        if not db.key_exists(self.key) or self.start > self.stop:
+            return constants.EMPTY_RESP_ARRAY.encode()
+        retrieved_list = db.get_list(self.key)
+        if self.start >= len(retrieved_list):
+            return constants.EMPTY_RESP_ARRAY.encode()
+        # automatically handles stop being larger than array
+        return data_types.RespArray(
+            [
+                data_types.RespBulkString(val)
+                for val in retrieved_list[self.start : self.stop + 1]
+            ]
+        ).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "LrangeCommand":
+        return LrangeCommand(
+            craft_command("LRANGE", *args).encode(),
+            args[0].encode(),
+            int(args[1]),
+            int(args[2]),
         )
 
 

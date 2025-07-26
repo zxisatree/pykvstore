@@ -30,6 +30,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.list_store[key].extend(values)
         return len(self.list_store[key])
 
+    def get_list(self, key: str) -> list[bytes]:
+        return self.list_store[key]
+
+    def key_exists(self, key: str) -> bool:
+        return key in self.store or key in self.list_store
+
     def start_xact(self, conn_id: ConnIdType):
         self.xacts[conn_id] = []
 

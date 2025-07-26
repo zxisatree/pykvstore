@@ -97,15 +97,25 @@ def parse_resp_cmd(
         key = resp_elements[1]
         return commands.TypeCommand(raw_cmd, key.data)
     elif cmd_str == b"MULTI":
-        return commands.MultiCommand()
+        return commands.MultiCommand(raw_cmd)
     elif cmd_str == b"EXEC":
-        return commands.ExecCommand()
+        return commands.ExecCommand(raw_cmd)
     elif cmd_str == b"DISCARD":
-        return commands.DiscardCommand()
+        return commands.DiscardCommand(raw_cmd)
     elif cmd_str == b"RPUSH":
         key = resp_elements[1]
         values = [value.data for value in resp_elements[2:]]
         return commands.RpushCommand(raw_cmd, key.data, values)
+    elif cmd_str == b"LRANGE":
+        key = resp_elements[1]
+        try:
+            lrange_start = int(resp_elements[2].data)
+            lrange_stop = int(resp_elements[3].data)
+        except ValueError:
+            logger.error(f"Tried to LRANGE with non int start/stop. Defaulting to 0, 0")
+            lrange_start = 0
+            lrange_stop = 0
+        return commands.LrangeCommand(raw_cmd, key.data, lrange_start, lrange_stop)
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])
