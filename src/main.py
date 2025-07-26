@@ -81,7 +81,11 @@ def execute_cmd(
     conn: socket.socket,
 ):
     conn_id = construct_conn_id(conn)  # TODO: check if this is really fixed
-    if db.xact_exists(conn_id) and not isinstance(cmd, commands.ExecCommand):
+    if (
+        db.xact_exists(conn_id)
+        and not isinstance(cmd, commands.ExecCommand)
+        and not isinstance(cmd, commands.DiscardCommand)
+    ):
         db.queue_xact_cmd(conn_id, cmd)
         executed = constants.XACT_QUEUED_RESPONSE.encode()
     else:

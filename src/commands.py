@@ -429,6 +429,19 @@ class ExecCommand(Command):
         return ExecCommand()
 
 
+class DiscardCommand(Command):
+    def execute(self, db, replica_handler, conn) -> bytes:
+        conn_id = construct_conn_id(conn)
+        if not db.xact_exists(conn_id):
+            return data_types.RespSimpleError(b"ERR DISCARD without MULTI").encode()
+        db.exec_xact(conn_id)
+        return constants.OK_SIMPLE_RESP_STRING.encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "DiscardCommand":
+        return DiscardCommand()
+
+
 class XaddCommand(Command):
     def __init__(
         self, raw_cmd: bytes, stream_key: bytes, data: list[data_types.RespBulkString]

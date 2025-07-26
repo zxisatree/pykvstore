@@ -100,6 +100,8 @@ def parse_resp_cmd(
         return commands.MultiCommand()
     elif cmd_str == b"EXEC":
         return commands.ExecCommand()
+    elif cmd_str == b"DISCARD":
+        return commands.DiscardCommand()
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])

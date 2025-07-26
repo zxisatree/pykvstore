@@ -31,7 +31,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def queue_xact_cmd(self, conn_id: ConnIdType, cmd: interfaces.Command):
         self.xacts[conn_id].append(cmd)
 
-    def exec_xact(self, conn_id: ConnIdType) -> list:
+    def exec_xact(self, conn_id: ConnIdType) -> list[interfaces.Command]:
         return self.xacts.pop(conn_id)
 
     def __init__(self, dir: str, dbfilename: str):
