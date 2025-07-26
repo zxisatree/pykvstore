@@ -482,16 +482,23 @@ class LrangeCommand(Command):
         self.stop = stop
 
     def execute(self, db, replica_handler, conn) -> bytes:
-        if not db.key_exists(self.key) or self.start > self.stop:
+        if not db.key_exists(self.key) or (self.stop >= 0 and self.start > self.stop):
             return constants.EMPTY_RESP_ARRAY.encode()
         retrieved_list = db.get_list(self.key)
         if self.start >= len(retrieved_list):
             return constants.EMPTY_RESP_ARRAY.encode()
         # automatically handles stop being larger than array
+        if self.stop == -1:
+            adjusted_stop = len(retrieved_list)
+        else:
+            adjusted_stop = self.stop + 1
+        logger.info(
+            f"{adjusted_stop=}, {self.stop=}, {retrieved_list[self.start : adjusted_stop]=}"
+        )
         return data_types.RespArray(
             [
                 data_types.RespBulkString(val)
-                for val in retrieved_list[self.start : self.stop + 1]
+                for val in retrieved_list[self.start : adjusted_stop]
             ]
         ).encode()
 
