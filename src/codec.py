@@ -10,7 +10,7 @@ def parse_cmd(cmd: bytes) -> list[commands.Command]:
     pos = 0
     while pos < len(cmd):
         orig = pos
-        resp_data, pos = dispatch(cmd, pos)
+        resp_data, pos = data_types.dispatch(cmd, pos)
         logger.info(f"Codec.parse {resp_data=}, {pos=}")
         match resp_data:
             case data_types.RespArray():
@@ -139,16 +139,3 @@ def parse_resp_cmd(
             return commands.XreadCommand(raw_cmd, keys, ids)
     else:
         return commands.RdbFileCommand(raw_cmd)
-
-
-def dispatch(cmd: bytes, pos: int) -> tuple[data_types.RespDataType, int]:
-    data_type = cmd[pos : pos + 1]
-    if data_type == b"*":
-        return data_types.RespArray.decode(cmd, pos)
-    elif data_type == b"$":
-        return data_types.decode_bulk_string_or_rdb(cmd, pos)
-    elif data_type == b"+":
-        return data_types.RespSimpleString.decode(cmd, pos)
-    else:
-        logger.info(f"Raising exception: Unsupported data type {data_type}")
-        raise Exception(f"Unsupported data type {data_type}")

@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-import codec
 import constants
 import exceptions
 from logs import logger
@@ -104,7 +103,7 @@ class RespArray(RespDataType):
 
         elements: list[RespDataType] = []
         for _ in range(array_len):
-            element, pos = codec.dispatch(data, pos)
+            element, pos = dispatch(data, pos)
             elements.append(element)
         assert pos <= len(data)
         return (RespArray(elements), pos)
@@ -299,3 +298,16 @@ def is_sep(data: bytes, pos: int) -> bool:
         and data[pos : pos + 1] == b"\r"
         and data[pos + 1 : pos + 2] == b"\n"
     )
+
+
+def dispatch(cmd: bytes, pos: int) -> tuple[RespDataType, int]:
+    data_type = cmd[pos : pos + 1]
+    if data_type == b"*":
+        return RespArray.decode(cmd, pos)
+    elif data_type == b"$":
+        return decode_bulk_string_or_rdb(cmd, pos)
+    elif data_type == b"+":
+        return RespSimpleString.decode(cmd, pos)
+    else:
+        logger.info(f"Raising exception: Unsupported data type {data_type}")
+        raise Exception(f"Unsupported data type {data_type}")

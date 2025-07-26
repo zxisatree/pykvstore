@@ -15,6 +15,7 @@ import commands
 import constants
 import database
 from logs import logger
+from utils import construct_conn_id
 import replicas
 
 
@@ -79,7 +80,13 @@ def execute_cmd(
     replica_handler: replicas.ReplicaHandler,
     conn: socket.socket,
 ):
-    executed = cmd.execute(db, replica_handler, conn)
+    conn_id = construct_conn_id(conn)  # TODO: check if this is really fixed
+    if db.xact_exists(conn_id) and not isinstance(cmd, commands.ExecCommand):
+        db.queue_xact_cmd(conn_id, cmd)
+        executed = constants.XACT_QUEUED_RESPONSE.encode()
+    else:
+        executed = cmd.execute(db, replica_handler, conn)
+
     if isinstance(executed, list):
         for resp in executed:
             logger.info(f"responding {resp}")

@@ -1,36 +1,12 @@
-from abc import ABC, abstractmethod
-from datetime import datetime
-import socket
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import constants
 import data_types
-import database
 import exceptions
+from interfaces import Command
 from logs import logger
+from utils import construct_conn_id
 import replicas
-
-
-class Command(ABC):
-    def __init__(self):
-        self._raw_cmd = b""
-
-    @property
-    def raw_cmd(self) -> bytes:
-        return self._raw_cmd
-
-    @abstractmethod
-    def execute(
-        self,
-        db: database.Database | None,
-        replica_handler: replicas.ReplicaHandler | None,
-        conn: socket.socket,
-    ) -> bytes | list[bytes]: ...
-
-    @staticmethod
-    @abstractmethod
-    # might raise RequestCraftError
-    def craft_request(*args: str) -> "Command": ...
 
 
 class NoOp(Command):
@@ -88,9 +64,7 @@ class SetCommand(Command):
         self.value = value.data
         self.expiry = expiry
 
-    def execute(
-        self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
-    ) -> bytes:
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         replica_handler.propogate(self._raw_cmd)
         db[self.key.decode()] = (self.value.decode(), self.expiry)
         return constants.OK_SIMPLE_RESP_STRING.encode()
@@ -127,9 +101,7 @@ class IncrCommand(Command):
         self._raw_cmd = raw_cmd
         self.key = key.data
 
-    def execute(
-        self, db: database.Database, replica_handler: replicas.ReplicaHandler, conn
-    ) -> bytes:
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         decoded_key = self.key.decode()
         old_value = db[decoded_key]
         # assume that old_value is always a str
@@ -167,7 +139,7 @@ class GetCommand(Command):
         self._raw_cmd = raw_cmd
         self.key = key.data
 
-    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         if self.key.decode() in db:
             value = db[self.key.decode()]
             if isinstance(value, str):
@@ -266,7 +238,7 @@ class PsyncCommand(Command):
         self._raw_cmd = raw_cmd
 
     def execute(
-        self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
+        self, db, replica_handler: replicas.ReplicaHandler, conn
     ) -> list[bytes]:
         replica_handler.add_slave(conn)
         return [
@@ -313,7 +285,7 @@ class ConfigGetCommand(Command):
         self._raw_cmd = raw_cmd
         self.key = key
 
-    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         if self.key.upper() == b"DIR":
             return data_types.RespArray(
                 [
@@ -344,7 +316,7 @@ class KeysCommand(Command):
         self._raw_cmd = raw_cmd
         self.pattern = pattern
 
-    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         return data_types.RespArray(
             list(
                 map(
@@ -367,9 +339,7 @@ class WaitCommand(Command):
         self.replica_count = replica_count
         self.timeout = timedelta(milliseconds=timeout)
 
-    def execute(
-        self, db, replica_handler: replicas.ReplicaHandler, conn: socket.socket
-    ) -> bytes:
+    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         now = datetime.now()
         end = now + self.timeout
         replica_handler.ack_count = 0
@@ -410,7 +380,7 @@ class TypeCommand(Command):
         self._raw_cmd = raw_cmd
         self.key = key
 
-    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         if self.key.decode() in db:
             return data_types.RespSimpleString(
                 db.get_type(self.key.decode()).encode()
@@ -428,9 +398,7 @@ class TypeCommand(Command):
 
 
 class MultiCommand(Command):
-    def execute(
-        self, db: database.Database, replica_handler, conn: socket.socket
-    ) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         conn_id = construct_conn_id(conn)
         db.start_xact(conn_id)
         return constants.OK_SIMPLE_RESP_STRING.encode()
@@ -441,11 +409,9 @@ class MultiCommand(Command):
 
 
 class ExecCommand(Command):
-    def execute(
-        self, db: database.Database, replica_handler, conn: socket.socket
-    ) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         conn_id = construct_conn_id(conn)
-        if not db.does_xact_exist(conn_id):
+        if not db.xact_exists(conn_id):
             return data_types.RespSimpleError(b"ERR EXEC without MULTI").encode()
         cmds = db.exec_xact(conn_id)
         return data_types.RespArray(cmds).encode()
@@ -465,7 +431,7 @@ class XaddCommand(Command):
 
     def execute(
         self,
-        db: database.Database,
+        db,
         replica_handler,
         conn,
     ) -> bytes:
@@ -506,7 +472,7 @@ class XrangeCommand(Command):
         self.start = start
         self.end = end
 
-    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         return db.xrange(self.key.decode(), self.start, self.end)
 
     @staticmethod
@@ -531,7 +497,7 @@ class XreadCommand(Command):
         self.ids = ids
         self.timeout = timeout
 
-    def execute(self, db: database.Database, replica_handler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         res = db.xread(self.stream_keys, self.ids, self.timeout)
         return res
 
@@ -561,7 +527,3 @@ def craft_command(*args: str) -> data_types.RespArray:
     return data_types.RespArray(
         list(map(lambda x: data_types.RespBulkString(x.encode()), args))
     )
-
-
-def construct_conn_id(conn: socket.socket) -> database.Database.ConnIdType:
-    return (conn.fileno(), conn.getsockname())

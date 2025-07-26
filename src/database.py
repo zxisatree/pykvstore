@@ -5,6 +5,7 @@ from threading import RLock
 import time
 import os
 
+import commands
 import constants
 import data_types
 from logs import logger
@@ -24,8 +25,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def start_xact(self, conn_id: ConnIdType):
         self.xacts[conn_id] = []
 
-    def does_xact_exist(self, conn_id: ConnIdType) -> bool:
+    def xact_exists(self, conn_id: ConnIdType) -> bool:
         return conn_id in self.xacts
+
+    # TODO: remove circular dependency in commands -> database to allow us to type cmds as: commands.Command
+    def queue_xact_cmd(self, conn_id: ConnIdType, cmd):
+        self.xacts[conn_id].append(cmd)
 
     def exec_xact(self, conn_id: ConnIdType) -> list:
         return self.xacts.pop(conn_id)
