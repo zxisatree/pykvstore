@@ -445,14 +445,14 @@ class RpushCommand(Command):
         self,
         raw_cmd: bytes,
         key: bytes,
-        value: bytes,
+        values: list[bytes],
     ):
         self._raw_cmd = raw_cmd
         self.key = key
-        self.value = value
+        self.values = values
 
     def execute(self, db: Database, replica_handler, conn) -> bytes:
-        length = db.rpush(self.key.decode(), self.value.decode())
+        length = db.rpush(self.key.decode(), self.values)
         return data_types.RespInteger(length).encode()
 
     @staticmethod
@@ -460,7 +460,9 @@ class RpushCommand(Command):
         if len(args) != 2:
             raise exceptions.RequestCraftError("RpushCommand takes 2 arguments")
         return RpushCommand(
-            craft_command("RPUSH", *args).encode(), args[0].encode(), args[1].encode()
+            craft_command("RPUSH", *args).encode(),
+            args[0].encode(),
+            [arg.encode() for arg in args],
         )
 
 

@@ -103,9 +103,9 @@ def parse_resp_cmd(
     elif cmd_str == b"DISCARD":
         return commands.DiscardCommand()
     elif cmd_str == b"RPUSH":
-        key = resp_elements[0]
-        value = resp_elements[1]
-        return commands.RpushCommand(raw_cmd, key.data, value.data)
+        key = resp_elements[1]
+        values = [value.data for value in resp_elements[2:]]
+        return commands.RpushCommand(raw_cmd, key.data, values)
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])

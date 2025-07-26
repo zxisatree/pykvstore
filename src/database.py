@@ -21,13 +21,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
     key_store_map: dict = {}
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
-    list_store: dict[str, list] = {}
+    list_store: dict[str, list[bytes]] = {}
     xacts: dict[ConnIdType, list] = {}
 
-    def rpush(self, key: str, value: str) -> int:
+    def rpush(self, key: str, values: list[bytes]) -> int:
         if key not in self.list_store:
             self.list_store[key] = []
-        self.list_store[key].append(value)
+        self.list_store[key].extend(values)
         return len(self.list_store[key])
 
     def start_xact(self, conn_id: ConnIdType):
