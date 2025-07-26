@@ -23,6 +23,35 @@ class RespDataType(ABC):
     def validate(that) -> "RespDataType": ...
 
 
+class RespPlainWrapper(RespDataType):
+    """Not an actual RESP data type, only used to avoid double encoding elements in arrays for MULTI/EXEC"""
+
+    def __init__(self, data: bytes):
+        self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __str__(self) -> str:
+        return str(self.data)
+
+    def __repr__(self) -> str:
+        return f"RespPlainWrapper({repr(self.data)})"
+
+    def encode(self) -> bytes:
+        return self.data
+
+    @staticmethod
+    def decode(data: bytes, pos: int):
+        raise NotImplementedError(
+            "RespPlainWrapper cannot be decoded, is not a RESP data type"
+        )
+
+    @staticmethod
+    def validate(that) -> "RespDataType":
+        raise NotImplementedError("RespPlainWrapper is not a RESP data type")
+
+
 class RespSimpleString(RespDataType):
     def __init__(self, data: bytes):
         self.data = data

@@ -5,7 +5,7 @@ from threading import RLock
 import time
 import os
 
-import commands
+import interfaces
 import constants
 import data_types
 from logs import logger
@@ -28,8 +28,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def xact_exists(self, conn_id: ConnIdType) -> bool:
         return conn_id in self.xacts
 
-    # TODO: remove circular dependency in commands -> database to allow us to type cmds as: commands.Command
-    def queue_xact_cmd(self, conn_id: ConnIdType, cmd):
+    def queue_xact_cmd(self, conn_id: ConnIdType, cmd: interfaces.Command):
         self.xacts[conn_id].append(cmd)
 
     def exec_xact(self, conn_id: ConnIdType) -> list:
@@ -243,7 +242,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if not isinstance(value, list):
                     return constants.XOP_ON_NON_STREAM_ERROR.encode()
                 if id == "$":
-                    logger.info(f"{original_lens[i]}")
+                    logger.info(f"{original_lens[i]=}")
                     id = str(value[original_lens[i] - 1][0]) if value else "0-0"
                 stream_id = StreamId(id)
 

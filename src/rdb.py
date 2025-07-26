@@ -12,7 +12,9 @@ class RdbFile:
         self.key_values: dict[str, tuple[str, datetime.datetime | None]] = {}
         err = self.read_rdb()
         if err is not None:
-            logger.error(f"Failed to read RDB file with error {err}, defaulting to empty file")
+            logger.error(
+                f"Failed to read RDB file with error {err}, defaulting to empty file"
+            )
             self.data = constants.EMPTY_RDB_FILE
             self.read_rdb()
 
@@ -73,7 +75,7 @@ class RdbFile:
             return val
 
     def parse(self):
-        logger.info(f"{self.data[self.idx:]}")
+        # logger.info(f"{self.data[self.idx:]=}")
         op_code = self.read(1)
         match op_code:
             case b"\xff":

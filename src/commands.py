@@ -414,7 +414,15 @@ class ExecCommand(Command):
         if not db.xact_exists(conn_id):
             return data_types.RespSimpleError(b"ERR EXEC without MULTI").encode()
         cmds = db.exec_xact(conn_id)
-        return data_types.RespArray(cmds).encode()
+        responses = [cmd.execute(db, replica_handler, conn) for cmd in cmds]
+        flattened = []
+        for response in responses:
+            if isinstance(response, list):
+                for inner_response in response:
+                    flattened.append(data_types.RespPlainWrapper(inner_response))
+            else:
+                flattened.append(data_types.RespPlainWrapper(response))
+        return data_types.RespArray(flattened).encode()
 
     @staticmethod
     def craft_request(*args: str) -> "ExecCommand":
