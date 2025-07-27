@@ -1,7 +1,8 @@
 import bisect
-from datetime import datetime
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
 import functools
-from threading import RLock
+from threading import RLock, Lock, Semaphore
 import time
 import os
 
@@ -19,22 +20,33 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     ConnIdType = tuple[int, str]
 
     lock = RLock()
-    key_store_map: dict = {}
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
     list_store: dict[str, list[bytes]] = {}  # TODO: standardise value type to bytes
+    blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = defaultdict(
+        lambda: (Lock(), deque())
+    )
     xacts: dict[ConnIdType, list] = {}
 
     def rpush(self, key: str, values: list[bytes]) -> int:
         if key not in self.list_store:
             self.list_store[key] = []
         self.list_store[key].extend(values)
+        self.list_notify_queue(key)
         return len(self.list_store[key])
 
     def lpush(self, key: str, values: list[bytes]) -> int:
         if key not in self.list_store:
             self.list_store[key] = []
         self.list_store[key] = values + self.list_store[key]
+        self.list_notify_queue(key)
         return len(self.list_store[key])
+
+    def list_notify_queue(self, key: str):
+        queue_lock, queue = self.blpop_waitlist[key]
+        with queue_lock:
+            if queue:
+                logger.info(f"releasing {queue[0]=}")
+                queue[0].release()
 
     def lpop(self, key: str) -> bytes:
         return self.list_store[key].pop(0)
@@ -42,6 +54,49 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def lpop_multiple(self, key: str, count: int) -> list[bytes]:
         values = [self.lpop(key) for _ in range(count)]
         return values
+
+    def blpop(self, key: str) -> bytes:
+        """Blocks indefinitely until the list is nonempty"""
+        queue_lock, queue = self.blpop_waitlist[key]
+        with queue_lock:
+            if key in self.list_store and len(self.list_store[key]) != 0:
+                # pop and return
+                return self.lpop(key)
+            else:
+                # add to queue, and wait
+                sem = Semaphore(0)
+                queue.append(sem)
+                queue_lock.release()
+                logger.info(f"{sem=} acquiring")
+                sem.acquire()
+                logger.info(f"{sem=} acquired! acquiring queue_lock")
+                queue_lock.acquire()
+                queue.popleft()  # really? yes. if the thread is notified, it must have been the leftmost in the queue
+                # pop and return
+                return self.lpop(key)
+
+        # # TODO: remove busy wait
+        # while len(self.list_store[key]) == 0:
+        #     time.sleep(0.5)
+        #     with self.lock:
+        #         if len(self.list_store[key]) == 0:
+        #             continue
+        #         return self.list_store[key].pop(0)
+        # return self.list_store[key].pop(0)
+
+    def blpop_timeout(self, key: str, timeout: int) -> bytes:
+        now = datetime.now()
+        end = now + timedelta(seconds=timeout)
+        while len(self.list_store[key]) == 0 and datetime.now() < end:
+            time.sleep(0.5)
+            with self.lock:
+                if len(self.list_store[key]) == 0:
+                    continue
+                return self.list_store[key].pop(0)
+        if len(self.list_store[key]) != 0:
+            return self.list_store[key].pop(0)
+        else:
+            return b""
 
     def get_list(self, key: str) -> list[bytes]:
         return self.list_store[key]

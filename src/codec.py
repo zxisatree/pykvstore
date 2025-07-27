@@ -123,6 +123,19 @@ def parse_resp_cmd(
         else:
             count = 1
         return commands.LpopCommand(raw_cmd, key.data, count)
+    elif cmd_str == b"BLPOP":
+        key = resp_elements[1]
+        if len(resp_data) == 3:
+            try:
+                timeout = int(resp_elements[2].data)
+            except ValueError:
+                logger.error(
+                    f"Tried to BLPOP with non int timeout {resp_elements[2].data}. Defaulting to 0 (indefinite)"
+                )
+                timeout = 0
+        else:
+            timeout = 1
+        return commands.BlpopCommand(raw_cmd, key.data, timeout)
     elif cmd_str == b"LLEN":
         key = resp_elements[1]
         return commands.LlenCommand(raw_cmd, key.data)

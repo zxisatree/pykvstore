@@ -525,6 +525,30 @@ class LpopCommand(Command):
         )
 
 
+class BlpopCommand(Command):
+    def __init__(self, raw_cmd: bytes, key: bytes, timeout: int):
+        self._raw_cmd = raw_cmd
+        self.key = key
+        self.timeout = timeout
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        if self.timeout == 0:
+            value = db.blpop(self.key.decode())
+        else:
+            value = db.blpop_timeout(self.key.decode(), self.timeout)
+        return data_types.RespArray(
+            [data_types.RespBulkString(self.key), data_types.RespBulkString(value)]
+        ).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "BlpopCommand":
+        if len(args) != 2:
+            raise exceptions.RequestCraftError("BlpopCommand takes 1 or 2 arguments")
+        return BlpopCommand(
+            craft_command("LPOP", *args).encode(), args[0].encode(), int(args[1])
+        )
+
+
 class LlenCommand(Command):
     def __init__(
         self,
