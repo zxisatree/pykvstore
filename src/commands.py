@@ -474,6 +474,32 @@ class RpushCommand(Command):
         )
 
 
+class LpushCommand(Command):
+    def __init__(
+        self,
+        raw_cmd: bytes,
+        key: bytes,
+        values: list[bytes],
+    ):
+        self._raw_cmd = raw_cmd
+        self.key = key
+        self.values = values
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        length = db.lpush(self.key.decode(), self.values[::-1])
+        return data_types.RespInteger(length).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "LpushCommand":
+        if len(args) != 2:
+            raise exceptions.RequestCraftError("LpushCommand takes 2 arguments")
+        return LpushCommand(
+            craft_command("LPUSH", *args).encode(),
+            args[0].encode(),
+            [arg.encode() for arg in args],
+        )
+
+
 class LrangeCommand(Command):
     def __init__(self, raw_cmd: bytes, key: bytes, start: int, stop: int):
         self._raw_cmd = raw_cmd
@@ -492,9 +518,6 @@ class LrangeCommand(Command):
             adjusted_stop = len(retrieved_list)
         else:
             adjusted_stop = self.stop + 1
-        logger.info(
-            f"{adjusted_stop=}, {self.stop=}, {retrieved_list[self.start : adjusted_stop]=}"
-        )
         return data_types.RespArray(
             [
                 data_types.RespBulkString(val)

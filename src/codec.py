@@ -106,6 +106,10 @@ def parse_resp_cmd(
         key = resp_elements[1]
         values = [value.data for value in resp_elements[2:]]
         return commands.RpushCommand(raw_cmd, key.data, values)
+    elif cmd_str == b"LPUSH":
+        key = resp_elements[1]
+        values = [value.data for value in resp_elements[2:]]
+        return commands.LpushCommand(raw_cmd, key.data, values)
     elif cmd_str == b"LRANGE":
         key = resp_elements[1]
         try:

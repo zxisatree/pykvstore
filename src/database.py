@@ -30,6 +30,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.list_store[key].extend(values)
         return len(self.list_store[key])
 
+    def lpush(self, key: str, values: list[bytes]) -> int:
+        if key not in self.list_store:
+            self.list_store[key] = []
+        self.list_store[key] = values + self.list_store[key]
+        return len(self.list_store[key])
+
     def get_list(self, key: str) -> list[bytes]:
         return self.list_store[key]
 
