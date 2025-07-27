@@ -112,7 +112,17 @@ def parse_resp_cmd(
         return commands.LpushCommand(raw_cmd, key.data, values)
     elif cmd_str == b"LPOP":
         key = resp_elements[1]
-        return commands.LpopCommand(raw_cmd, key.data)
+        if len(resp_data) == 3:
+            try:
+                count = int(resp_elements[2].data)
+            except ValueError:
+                logger.error(
+                    f"Tried to LPOP with non int count {resp_elements[2].data}. Defaulting to 0"
+                )
+                count = 0
+        else:
+            count = 1
+        return commands.LpopCommand(raw_cmd, key.data, count)
     elif cmd_str == b"LLEN":
         key = resp_elements[1]
         return commands.LlenCommand(raw_cmd, key.data)

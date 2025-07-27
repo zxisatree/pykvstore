@@ -39,6 +39,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def lpop(self, key: str) -> bytes:
         return self.list_store[key].pop(0)
 
+    def lpop_multiple(self, key: str, count: int) -> list[bytes]:
+        values = [self.lpop(key) for _ in range(count)]
+        return values
+
     def get_list(self, key: str) -> list[bytes]:
         return self.list_store[key]
 
