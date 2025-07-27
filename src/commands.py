@@ -500,6 +500,32 @@ class LpushCommand(Command):
         )
 
 
+class LlenCommand(Command):
+    def __init__(
+        self,
+        raw_cmd: bytes,
+        key: bytes,
+    ):
+        self._raw_cmd = raw_cmd
+        self.key = key
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        if not db.key_exists(self.key.decode()):
+            length = 0
+        else:
+            length = len(db.get_list(self.key.decode()))
+        return data_types.RespInteger(length).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "LlenCommand":
+        if len(args) != 2:
+            raise exceptions.RequestCraftError("LlenCommand takes 1 argument")
+        return LlenCommand(
+            craft_command("LLEN", *args).encode(),
+            args[0].encode(),
+        )
+
+
 class LrangeCommand(Command):
     def __init__(self, raw_cmd: bytes, key: bytes, start: int, stop: int):
         self._raw_cmd = raw_cmd
