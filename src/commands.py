@@ -500,6 +500,29 @@ class LpushCommand(Command):
         )
 
 
+class LpopCommand(Command):
+    def __init__(
+        self,
+        raw_cmd: bytes,
+        key: bytes,
+    ):
+        self._raw_cmd = raw_cmd
+        self.key = key
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        value = db.lpop(self.key.decode())
+        return data_types.RespBulkString(value).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "LpopCommand":
+        if len(args) != 2:
+            raise exceptions.RequestCraftError("LpopCommand takes 1 argument")
+        return LpopCommand(
+            craft_command("LPOP", *args).encode(),
+            args[0].encode(),
+        )
+
+
 class LlenCommand(Command):
     def __init__(
         self,

@@ -21,7 +21,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     lock = RLock()
     key_store_map: dict = {}
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
-    list_store: dict[str, list[bytes]] = {}
+    list_store: dict[str, list[bytes]] = {}  # TODO: standardise value type to bytes
     xacts: dict[ConnIdType, list] = {}
 
     def rpush(self, key: str, values: list[bytes]) -> int:
@@ -35,6 +35,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             self.list_store[key] = []
         self.list_store[key] = values + self.list_store[key]
         return len(self.list_store[key])
+
+    def lpop(self, key: str) -> bytes:
+        return self.list_store[key].pop(0)
 
     def get_list(self, key: str) -> list[bytes]:
         return self.list_store[key]
