@@ -9,7 +9,7 @@ STREAM_ID_NOT_GREATER_ERROR = (
 )
 STREAM_ID_TOO_SMALL_ERROR = "ERR The ID specified in XADD must be greater than 0-0"
 XOP_ON_NON_STREAM_ERROR = "ERR The key provided does not refer to a stream"
-NO_OP_RESPONSE = "NOOP"
+NO_OP_ERROR = "ERR NOOP"
 XACT_QUEUED_RESPONSE = "+QUEUED\r\n"
 EMPTY_RESP_ARRAY = "*0\r\n"
 

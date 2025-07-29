@@ -45,7 +45,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         queue_lock, queue = self.blpop_waitlist[key]
         with queue_lock:
             if queue:
-                logger.info(f"releasing {queue[0]=}")
                 queue[0].release()
 
     def lpop(self, key: str) -> bytes:
@@ -55,48 +54,25 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         values = [self.lpop(key) for _ in range(count)]
         return values
 
-    def blpop(self, key: str) -> bytes:
+    def blpop_timeout(self, key: str, timeout: float | None) -> bytes | None:
         """Blocks indefinitely until the list is nonempty"""
         queue_lock, queue = self.blpop_waitlist[key]
         with queue_lock:
             if key in self.list_store and len(self.list_store[key]) != 0:
-                # pop and return
                 return self.lpop(key)
             else:
-                # add to queue, and wait
                 sem = Semaphore(0)
                 queue.append(sem)
                 queue_lock.release()
-                logger.info(f"{sem=} acquiring")
-                sem.acquire()
-                logger.info(f"{sem=} acquired! acquiring queue_lock")
+                acquire_res = sem.acquire(timeout=timeout)
                 queue_lock.acquire()
-                queue.popleft()  # really? yes. if the thread is notified, it must have been the leftmost in the queue
-                # pop and return
-                return self.lpop(key)
-
-        # # TODO: remove busy wait
-        # while len(self.list_store[key]) == 0:
-        #     time.sleep(0.5)
-        #     with self.lock:
-        #         if len(self.list_store[key]) == 0:
-        #             continue
-        #         return self.list_store[key].pop(0)
-        # return self.list_store[key].pop(0)
-
-    def blpop_timeout(self, key: str, timeout: int) -> bytes:
-        now = datetime.now()
-        end = now + timedelta(seconds=timeout)
-        while len(self.list_store[key]) == 0 and datetime.now() < end:
-            time.sleep(0.5)
-            with self.lock:
-                if len(self.list_store[key]) == 0:
-                    continue
-                return self.list_store[key].pop(0)
-        if len(self.list_store[key]) != 0:
-            return self.list_store[key].pop(0)
-        else:
-            return b""
+                if acquire_res:
+                    # we succesfully acquired
+                    # if the thread is notified, it must have been the leftmost in the queue
+                    queue.popleft()
+                    return self.lpop(key)
+                else:
+                    return None
 
     def get_list(self, key: str) -> list[bytes]:
         return self.list_store[key]

@@ -14,7 +14,7 @@ class NoOp(Command):
         self._raw_cmd = raw_cmd
 
     def execute(self, db, replica_handler, conn) -> bytes:
-        return data_types.RespSimpleError(constants.NO_OP_RESPONSE.encode()).encode()
+        return constants.NO_OP_ERROR.encode()
 
     @staticmethod
     def craft_request(*args: str) -> "NoOp":
@@ -526,19 +526,22 @@ class LpopCommand(Command):
 
 
 class BlpopCommand(Command):
-    def __init__(self, raw_cmd: bytes, key: bytes, timeout: int):
+    def __init__(self, raw_cmd: bytes, key: bytes, timeout: float):
         self._raw_cmd = raw_cmd
         self.key = key
         self.timeout = timeout
 
     def execute(self, db, replica_handler, conn) -> bytes:
-        if self.timeout == 0:
-            value = db.blpop(self.key.decode())
+        value = db.blpop_timeout(
+            self.key.decode(), None if self.timeout == 0 else self.timeout
+        )
+        if value:
+            return data_types.RespArray(
+                [data_types.RespBulkString(self.key), data_types.RespBulkString(value)]
+            ).encode()
         else:
-            value = db.blpop_timeout(self.key.decode(), self.timeout)
-        return data_types.RespArray(
-            [data_types.RespBulkString(self.key), data_types.RespBulkString(value)]
-        ).encode()
+            # timed out
+            return constants.NULL_BULK_RESP_STRING.encode()
 
     @staticmethod
     def craft_request(*args: str) -> "BlpopCommand":
