@@ -19,13 +19,102 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     StoreStreamValType = list[tuple["StreamId", dict[str, str]]]
     ConnIdType = tuple[int, str]
 
-    lock = RLock()
+    keys: dict[str, int] = {}
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
     list_store: dict[str, list[bytes]] = {}  # TODO: standardise value type to bytes
     blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = defaultdict(
         lambda: (Lock(), deque())
     )
     xacts: dict[ConnIdType, list] = {}
+
+    def __init__(self, dir: str, dbfilename: str):
+        self.dir = dir
+        self.dbfilename = dbfilename
+        file_path = os.path.join(self.dir, self.dbfilename)
+        if os.path.exists(file_path):
+            with open(file_path, "rb") as f:
+                self.rdb = rdb.RdbFile(f.read())
+        else:
+            self.rdb = rdb.RdbFile(constants.EMPTY_RDB_FILE)
+        for key, value in self.rdb.key_values.items():
+            self.store[key] = value
+        logger.info(f"db initialised with {self.store=}")
+
+    def __len__(self) -> int:
+        return len(self.store)
+
+    def __getitem__(self, key: str) -> str | StoreStreamValType | None:
+        """Only returns the value, not the expiry"""
+        if key not in self.store:
+            return None
+        value = self.store[key]
+        if isinstance(value, list):
+            return value
+        if value[1] and self.expire_one(key):
+            return None
+        return value[0]
+
+    def __setitem__(self, key: str, value: StoreStrValType):
+        self.store[key] = value
+
+    def __delitem__(self, key: str):
+        del self.store[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in map(lambda x: x, self.store.keys())
+
+    def __str__(self) -> str:
+        return str(self.store)
+
+    def __repr__(self) -> str:
+        return f"Store({repr(self.store)})"
+
+    def get_type(self, key: str) -> str:
+        if key not in self.store:
+            return "none"
+        value = self.store[key]
+        if isinstance(value, list):
+            return "stream"
+        return "string"
+
+    def get_expiry(self, key: str) -> datetime | None:
+        if key not in self.store:
+            return None
+        value = self.store[key]
+        # get_expiry only works for non stream values
+        if not isinstance(value, tuple):
+            raise Exception(f"Called get_expiry on a stream key {key=}")
+        return value[1]
+
+    def expire(self):
+        for key, value in self.store.items():
+            if not isinstance(value, list):
+                _, expiry = value
+                if expiry and expiry < datetime.now():
+                    del self.store[key]
+
+    def expire_one(self, key: str) -> bool:
+        # returns True if key was expired
+        value = self.store[key]
+        if isinstance(value, list):
+            return False
+        expiry = value[1]
+        if expiry and expiry < datetime.now():
+            del self.store[key]
+            return True
+        return False
+
+    def start_xact(self, conn_id: ConnIdType):
+        self.xacts[conn_id] = []
+
+    def xact_exists(self, conn_id: ConnIdType) -> bool:
+        return conn_id in self.xacts
+
+    def queue_xact_cmd(self, conn_id: ConnIdType, cmd: interfaces.Command):
+        self.xacts[conn_id].append(cmd)
+
+    def exec_xact(self, conn_id: ConnIdType) -> list[interfaces.Command]:
+        return self.xacts.pop(conn_id)
 
     def rpush(self, key: str, values: list[bytes]) -> int:
         if key not in self.list_store:
@@ -80,182 +169,133 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def key_exists(self, key: str) -> bool:
         return key in self.store or key in self.list_store
 
-    def start_xact(self, conn_id: ConnIdType):
-        self.xacts[conn_id] = []
-
-    def xact_exists(self, conn_id: ConnIdType) -> bool:
-        return conn_id in self.xacts
-
-    def queue_xact_cmd(self, conn_id: ConnIdType, cmd: interfaces.Command):
-        self.xacts[conn_id].append(cmd)
-
-    def exec_xact(self, conn_id: ConnIdType) -> list[interfaces.Command]:
-        return self.xacts.pop(conn_id)
-
-    def __init__(self, dir: str, dbfilename: str):
-        self.dir = dir
-        self.dbfilename = dbfilename
-        file_path = os.path.join(self.dir, self.dbfilename)
-        if os.path.exists(file_path):
-            with open(file_path, "rb") as f:
-                self.rdb = rdb.RdbFile(f.read())
-        else:
-            self.rdb = rdb.RdbFile(constants.EMPTY_RDB_FILE)
-        for key, value in self.rdb.key_values.items():
-            self.store[key] = value
-        logger.info(f"db initialised with {self.store=}")
-
-    def __len__(self) -> int:
-        with self.lock:
-            return len(self.store)
-
-    def __getitem__(self, key: str) -> str | StoreStreamValType | None:
-        """Only returns the value, not the expiry"""
-        with self.lock:
-            if key not in self.store:
-                return None
-            value = self.store[key]
-            if isinstance(value, list):
-                return value
-            if value[1] and self.expire_one(key):
-                return None
-            return value[0]
-
-    def __setitem__(self, key: str, value: StoreStrValType):
-        with self.lock:
-            self.store[key] = value
-
-    def __delitem__(self, key: str):
-        with self.lock:
-            del self.store[key]
-
-    def __contains__(self, key: str) -> bool:
-        with self.lock:
-            return key in map(lambda x: x, self.store.keys())
-
-    def __str__(self) -> str:
-        with self.lock:
-            return str(self.store)
-
-    def __repr__(self) -> str:
-        with self.lock:
-            return f"Store({repr(self.store)})"
-
-    def get_type(self, key: str) -> str:
-        with self.lock:
-            if key not in self.store:
-                return "none"
-            value = self.store[key]
-            if isinstance(value, list):
-                return "stream"
-            return "string"
-
-    def get_expiry(self, key: str) -> datetime | None:
-        with self.lock:
-            if key not in self.store:
-                return None
-            value = self.store[key]
-            # get_expiry only works for non stream values
-            if not isinstance(value, tuple):
-                raise Exception(f"Called get_expiry on a stream key {key=}")
-            return value[1]
-
-    def expire(self):
-        with self.lock:
-            for key, value in self.store.items():
-                if not isinstance(value, list):
-                    _, expiry = value
-                    if expiry and expiry < datetime.now():
-                        del self.store[key]
-
-    def expire_one(self, key: str) -> bool:
-        # returns True if key was expired
-        with self.lock:
-            value = self.store[key]
-            if isinstance(value, list):
-                return False
-            expiry = value[1]
-            if expiry and expiry < datetime.now():
-                del self.store[key]
-                return True
-            return False
-
     def validate_stream_id(self, key: str, id: str) -> bytes | None:
-        with self.lock:
-            if key not in self.store:
-                return None
-            cur_value = self.store[key]
-            if not isinstance(cur_value, list):
-                return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
-            if id == "*":
-                return None
-            milliseconds_time, seq_no = id.split("-")
-            seq_no_is_star = seq_no == "*"
-
-            is_0_0 = milliseconds_time == "0" and seq_no == "0"
-            if is_0_0:
-                return constants.STREAM_ID_TOO_SMALL_ERROR.encode()
-            if not cur_value:
-                return None
-            last_mst, last_seq_no = str(cur_value[-1][0]).split("-")
-            if int(milliseconds_time) < int(last_mst):
-                return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
-            elif seq_no_is_star:
-                return None
-            elif int(milliseconds_time) == int(last_mst) and int(seq_no) <= int(
-                last_seq_no
-            ):
-                return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+        if key not in self.store:
             return None
+        cur_value = self.store[key]
+        if not isinstance(cur_value, list):
+            return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+        if id == "*":
+            return None
+        milliseconds_time, seq_no = id.split("-")
+        seq_no_is_star = seq_no == "*"
+
+        is_0_0 = milliseconds_time == "0" and seq_no == "0"
+        if is_0_0:
+            return constants.STREAM_ID_TOO_SMALL_ERROR.encode()
+        if not cur_value:
+            return None
+        last_mst, last_seq_no = str(cur_value[-1][0]).split("-")
+        if int(milliseconds_time) < int(last_mst):
+            return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+        elif seq_no_is_star:
+            return None
+        elif int(milliseconds_time) == int(last_mst) and int(seq_no) <= int(
+            last_seq_no
+        ):
+            return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+        return None
 
     def xadd(self, key: str, id: str, value: dict) -> str:
         # stream key has already been validated
-        with self.lock:
-            if key not in self.store:
-                self.store[key] = []
-            cur_value = self.store[key]
-            if not isinstance(cur_value, list):
-                raise Exception(f"key {key} is not a stream")
-            processed_id = StreamId.generate_stream_id(
-                id, str(cur_value[-1][0]) if cur_value else None
-            )
-            cur_value.append((processed_id, value))
-            return str(processed_id)
+        if key not in self.store:
+            self.store[key] = []
+        cur_value = self.store[key]
+        if not isinstance(cur_value, list):
+            raise Exception(f"key {key} is not a stream")
+        processed_id = StreamId.generate_stream_id(
+            id, str(cur_value[-1][0]) if cur_value else None
+        )
+        cur_value.append((processed_id, value))
+        return str(processed_id)
 
     def xrange(self, key: str, start: str, end: str) -> bytes:
-        with self.lock:
-            value = self.store[key]
+        value = self.store[key]
+        if not isinstance(value, list):
+            return constants.XOP_ON_NON_STREAM_ERROR.encode()
+        if start == "-":
+            start = "0-1"
+        elif "-" not in start:
+            start = f"{start}-0"
+        if end == "+":
+            end = (
+                str(value[-1][0])
+                if value
+                else f"{constants.MAX_STREAM_ID_SEQ_NO}-{constants.MAX_STREAM_ID_SEQ_NO}"
+            )
+        elif "-" not in end:
+            end = f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}"
+        start_stream_id = StreamId(start)
+        end_stream_id = StreamId(end)
+
+        lo = bisect.bisect_right(value, start_stream_id, key=lambda x: x[0])
+        if lo >= len(value):
+            return data_types.RespArray([]).encode()
+        hi = bisect.bisect_right(value, end_stream_id, key=lambda x: x[0])
+        if hi >= len(value):
+            hi = len(value)
+
+        res = []
+        for i in range(lo - 1 if lo != 0 else 0, hi):
+            flattened_kvs = []
+            for k, v in value[i][1].items():
+                flattened_kvs.append(data_types.RespBulkString(k.encode()))
+                flattened_kvs.append(data_types.RespBulkString(v.encode()))
+            res.append(
+                data_types.RespArray(
+                    [
+                        data_types.RespBulkString(str(value[i][0]).encode()),
+                        data_types.RespArray(flattened_kvs),
+                    ]
+                )
+            )
+        return data_types.RespArray(res).encode()
+
+    def xread(
+        self, stream_keys: list[str], ids: list[str], timeout: int | None
+    ) -> bytes:
+        if timeout is not None:
+            original_lens = [len(self.store[stream_key]) for stream_key in stream_keys]
+            logger.info(f"{original_lens=}")
+            if timeout != 0:
+                time.sleep(timeout / 1e3)
+            else:
+                while True:
+                    time.sleep(0.5)
+                    new_lens = [
+                        len(self.store[stream_key]) for stream_key in stream_keys
+                    ]
+                    to_break = False
+                    for i in range(len(original_lens)):
+                        if new_lens[i] != original_lens[i]:
+                            to_break = True
+                    if to_break:
+                        logger.info(f"{new_lens=}")
+                        break
+
+        res = []
+        for i in range(len(stream_keys)):
+            stream_key = stream_keys[i]
+            id = ids[i]
+            value = self.store[stream_key]
             if not isinstance(value, list):
                 return constants.XOP_ON_NON_STREAM_ERROR.encode()
-            if start == "-":
-                start = "0-1"
-            elif "-" not in start:
-                start = f"{start}-0"
-            if end == "+":
-                end = (
-                    str(value[-1][0])
-                    if value
-                    else f"{constants.MAX_STREAM_ID_SEQ_NO}-{constants.MAX_STREAM_ID_SEQ_NO}"
-                )
-            elif "-" not in end:
-                end = f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}"
-            start_stream_id = StreamId(start)
-            end_stream_id = StreamId(end)
+            if id == "$":
+                logger.info(f"{original_lens[i]=}")
+                id = str(value[original_lens[i] - 1][0]) if value else "0-0"
+            stream_id = StreamId(id)
 
-            lo = bisect.bisect_right(value, start_stream_id, key=lambda x: x[0])
+            lo = bisect.bisect_right(value, stream_id, key=lambda x: x[0])
             if lo >= len(value):
-                return data_types.RespArray([]).encode()
-            hi = bisect.bisect_right(value, end_stream_id, key=lambda x: x[0])
-            if hi >= len(value):
-                hi = len(value)
+                return constants.NULL_BULK_RESP_STRING.encode()
 
-            res = []
-            for i in range(lo - 1 if lo != 0 else 0, hi):
+            inter: list[data_types.RespDataType] = []
+            for i in range(lo, len(value)):
                 flattened_kvs = []
                 for k, v in value[i][1].items():
                     flattened_kvs.append(data_types.RespBulkString(k.encode()))
                     flattened_kvs.append(data_types.RespBulkString(v.encode()))
-                res.append(
+                inter.append(
                     data_types.RespArray(
                         [
                             data_types.RespBulkString(str(value[i][0]).encode()),
@@ -263,74 +303,15 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                         ]
                     )
                 )
-            return data_types.RespArray(res).encode()
-
-    def xread(
-        self, stream_keys: list[str], ids: list[str], timeout: int | None
-    ) -> bytes:
-        if timeout is not None:
-            with self.lock:
-                original_lens = [
-                    len(self.store[stream_key]) for stream_key in stream_keys
-                ]
-            logger.info(f"{original_lens=}")
-            if timeout != 0:
-                time.sleep(timeout / 1e3)
-            else:
-                while True:
-                    time.sleep(0.5)
-                    with self.lock:
-                        new_lens = [
-                            len(self.store[stream_key]) for stream_key in stream_keys
-                        ]
-                        to_break = False
-                        for i in range(len(original_lens)):
-                            if new_lens[i] != original_lens[i]:
-                                to_break = True
-                        if to_break:
-                            logger.info(f"{new_lens=}")
-                            break
-
-        with self.lock:
-            res = []
-            for i in range(len(stream_keys)):
-                stream_key = stream_keys[i]
-                id = ids[i]
-                value = self.store[stream_key]
-                if not isinstance(value, list):
-                    return constants.XOP_ON_NON_STREAM_ERROR.encode()
-                if id == "$":
-                    logger.info(f"{original_lens[i]=}")
-                    id = str(value[original_lens[i] - 1][0]) if value else "0-0"
-                stream_id = StreamId(id)
-
-                lo = bisect.bisect_right(value, stream_id, key=lambda x: x[0])
-                if lo >= len(value):
-                    return constants.NULL_BULK_RESP_STRING.encode()
-
-                inter: list[data_types.RespDataType] = []
-                for i in range(lo, len(value)):
-                    flattened_kvs = []
-                    for k, v in value[i][1].items():
-                        flattened_kvs.append(data_types.RespBulkString(k.encode()))
-                        flattened_kvs.append(data_types.RespBulkString(v.encode()))
-                    inter.append(
-                        data_types.RespArray(
-                            [
-                                data_types.RespBulkString(str(value[i][0]).encode()),
-                                data_types.RespArray(flattened_kvs),
-                            ]
-                        )
-                    )
-                res.append(
-                    data_types.RespArray(
-                        [
-                            data_types.RespBulkString(stream_key.encode()),
-                            data_types.RespArray(inter),
-                        ]
-                    )
+            res.append(
+                data_types.RespArray(
+                    [
+                        data_types.RespBulkString(stream_key.encode()),
+                        data_types.RespArray(inter),
+                    ]
                 )
-            return data_types.RespArray(res).encode()
+            )
+        return data_types.RespArray(res).encode()
 
 
 @functools.total_ordering
