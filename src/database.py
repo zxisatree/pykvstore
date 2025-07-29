@@ -1,8 +1,9 @@
 import bisect
 from collections import defaultdict, deque
-from datetime import datetime, timedelta
+from datetime import datetime
+from enum import Enum
 import functools
-from threading import RLock, Lock, Semaphore
+from threading import Lock, Semaphore
 import time
 import os
 
@@ -19,7 +20,23 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     StoreStreamValType = list[tuple["StreamId", dict[str, str]]]
     ConnIdType = tuple[int, str]
 
-    keys: dict[str, int] = {}
+    class ValType(Enum):
+        NONE = 0
+        STRING = 1
+        STREAM = 2
+        LIST = 3
+
+        def __str__(self) -> str:
+            match self.value:
+                case 1:
+                    return "string"
+                case 2:
+                    return "stream"
+                case 3:
+                    return "list"
+            return "none"
+
+    keys: dict[str, ValType] = {}
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
     list_store: dict[str, list[bytes]] = {}  # TODO: standardise value type to bytes
     blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = defaultdict(
@@ -54,14 +71,16 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return None
         return value[0]
 
+    # TODO: remove? can't reliably set self.keys with this
     def __setitem__(self, key: str, value: StoreStrValType):
+        self.keys[key] = self.ValType.STRING
         self.store[key] = value
 
     def __delitem__(self, key: str):
         del self.store[key]
 
     def __contains__(self, key: str) -> bool:
-        return key in map(lambda x: x, self.store.keys())
+        return key in self.store
 
     def __str__(self) -> str:
         return str(self.store)
@@ -72,10 +91,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def get_type(self, key: str) -> str:
         if key not in self.store:
             return "none"
-        value = self.store[key]
-        if isinstance(value, list):
-            return "stream"
-        return "string"
+        # value = self.store[key]
+        # if isinstance(value, list):
+        #     return "stream"
+        # return "string"
+        return str(self.keys[key])
 
     def get_expiry(self, key: str) -> datetime | None:
         if key not in self.store:
@@ -117,6 +137,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return self.xacts.pop(conn_id)
 
     def rpush(self, key: str, values: list[bytes]) -> int:
+        self.keys[key] = self.ValType.LIST
         if key not in self.list_store:
             self.list_store[key] = []
         self.list_store[key].extend(values)
@@ -124,6 +145,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return len(self.list_store[key])
 
     def lpush(self, key: str, values: list[bytes]) -> int:
+        self.keys[key] = self.ValType.LIST
         if key not in self.list_store:
             self.list_store[key] = []
         self.list_store[key] = values + self.list_store[key]
@@ -198,6 +220,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
     def xadd(self, key: str, id: str, value: dict) -> str:
         # stream key has already been validated
+        self.keys[key] = self.ValType.STREAM
         if key not in self.store:
             self.store[key] = []
         cur_value = self.store[key]
