@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import cast
 
 import constants
 import exceptions
@@ -145,11 +146,16 @@ class RespArray(RespDataType):
 
 
 class RespBulkString(RespDataType):
-    def __init__(self, data: bytes):
-        self.data = data
+    def __init__(self, data: bytes | None):
+        if data is None:
+            self.is_nil = True
+            self.data = b""
+        else:
+            self.is_nil = False
+            self.data = cast(bytes, data)
 
     def __len__(self) -> int:
-        return len(self.data)
+        return len(self.data) if self.data else 0
 
     def __str__(self) -> str:
         return str(self.data)
@@ -160,7 +166,7 @@ class RespBulkString(RespDataType):
     def encode(self) -> bytes:
         return (
             f"${len(self.data)}\r\n".encode() + self.data + b"\r\n"
-            if self.data
+            if not self.is_nil
             else constants.NULL_BULK_RESP_STRING.encode()
         )
 

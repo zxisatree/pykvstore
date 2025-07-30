@@ -12,10 +12,15 @@ if TYPE_CHECKING:
 class Command(ABC):
     def __init__(self):
         self._raw_cmd = b""
+        self._keyword = b""
 
     @property
     def raw_cmd(self) -> bytes:
         return self._raw_cmd
+
+    @property
+    def keyword(self) -> bytes:
+        return self._keyword
 
     @abstractmethod
     def execute(

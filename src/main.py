@@ -14,6 +14,7 @@ import codec
 import commands
 import constants
 import database
+import data_types
 from logs import logger
 from utils import construct_conn_id
 import replicas
@@ -80,7 +81,7 @@ def execute_cmd(
     replica_handler: replicas.ReplicaHandler,
     conn: socket.socket,
 ):
-    conn_id = construct_conn_id(conn)  # TODO: check if this is really fixed
+    conn_id = construct_conn_id(conn)  # TODO: check if this is really static
     if (
         db.xact_exists(conn_id)
         and not isinstance(cmd, commands.ExecCommand)
@@ -88,6 +89,19 @@ def execute_cmd(
     ):
         db.queue_xact_cmd(conn_id, cmd)
         executed = constants.XACT_QUEUED_RESPONSE.encode()
+    elif (
+        db.in_subscribed_mode(conn_id)
+        and not isinstance(cmd, commands.SubscribeCommand)
+        and not isinstance(cmd, commands.PingCommand)
+    ):
+        executed = data_types.RespSimpleError(
+            f"ERR Can't execute '{cmd.keyword.decode().lower()}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
+        ).encode()
+    elif db.in_subscribed_mode(conn_id) and isinstance(cmd, commands.PingCommand):
+        # TODO: should actually be in Commands interface
+        cmd.in_subscribed_mode = True
+        logger.info(f"cmd.in_subscribed_mode = True")
+        executed = cmd.execute(db, replica_handler, conn)
     else:
         executed = cmd.execute(db, replica_handler, conn)
 
