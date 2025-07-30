@@ -3,6 +3,7 @@ from collections import defaultdict, deque
 from datetime import datetime
 from enum import Enum
 import functools
+import socket
 from threading import Lock, Semaphore
 import time
 from typing import cast
@@ -45,14 +46,25 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     )
     xacts: dict[ConnIdType, list] = {}
     channels: defaultdict[tuple[int, str], set[str]] = defaultdict(set)
+    subscribers: defaultdict[str, set[tuple[tuple[int, str], socket.socket]]] = (
+        defaultdict(set)
+    )
 
     def in_subscribed_mode(self, conn_id: tuple[int, str]) -> bool:
         return conn_id in self.channels
 
-    def subscribe(self, channel_name: str, conn_id: tuple[int, str]) -> int:
+    def subscribe(
+        self, channel_name: str, conn: socket.socket, conn_id: tuple[int, str]
+    ) -> int:
         """Subscribe to a channel, and return the number of channels the client is subscribed to"""
         self.channels[conn_id].add(channel_name)
+        self.subscribers[channel_name].add((conn_id, conn))
         return len(self.channels[conn_id])
+
+    def get_subscribers(
+        self, channel_name: str
+    ) -> set[tuple[tuple[int, str], socket.socket]]:
+        return self.subscribers[channel_name]
 
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir

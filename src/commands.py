@@ -760,7 +760,7 @@ class SubscribeCommand(Command):
 
     def execute(self, db, replica_handler, conn) -> bytes:
         conn_id = construct_conn_id(conn)
-        channel_count = db.subscribe(self.channel_name.decode(), conn_id)
+        channel_count = db.subscribe(self.channel_name.decode(), conn, conn_id)
         return data_types.RespArray(
             [
                 data_types.RespBulkString(b"subscribe"),
@@ -775,6 +775,36 @@ class SubscribeCommand(Command):
             raise exceptions.RequestCraftError("SubscribeCommand takes 1 argument")
         return SubscribeCommand(
             craft_command("SUBSCRIBE", *args).encode(), args[0].encode()
+        )
+
+
+class PublishCommand(Command):
+    def __init__(self, raw_cmd: bytes, channel_name: bytes, msg: bytes):
+        self._raw_cmd = raw_cmd
+        self.channel_name = channel_name
+        self.msg = msg
+        self._keyword = b"PUBLISH"
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        publish_msg = data_types.RespArray(
+            [
+                data_types.RespBulkString(b"message"),
+                data_types.RespBulkString(self.channel_name),
+                data_types.RespBulkString(self.msg),
+            ]
+        ).encode()
+        for _, subscribed_conn in db.get_subscribers(self.channel_name.decode()):
+            subscribed_conn.sendall(publish_msg)
+        return data_types.RespInteger(
+            len(db.get_subscribers(self.channel_name.decode()))
+        ).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "PublishCommand":
+        if len(args) != 2:
+            raise exceptions.RequestCraftError("PublishCommand takes 2 arguments")
+        return PublishCommand(
+            craft_command("PUBLISH", *args).encode(), args[0].encode(), args[1].encode()
         )
 
 
