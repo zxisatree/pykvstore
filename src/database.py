@@ -5,6 +5,7 @@ from enum import Enum
 import functools
 from threading import Lock, Semaphore
 import time
+from typing import cast
 import os
 
 import interfaces
@@ -36,7 +37,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return "list"
             return "none"
 
-    keys: dict[str, ValType] = {}
+    key_types: dict[str, ValType] = {}
     store: dict[str, StoreStrValType | StoreStreamValType] = {}
     list_store: dict[str, list[bytes]] = {}  # TODO: standardise value type to bytes
     blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = defaultdict(
@@ -55,25 +56,34 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             self.rdb = rdb.RdbFile(constants.EMPTY_RDB_FILE)
         for key, value in self.rdb.key_values.items():
             self.store[key] = value
+            self.key_types[key] = Database.ValType.STRING  # only support strings in RDB
         logger.info(f"db initialised with {self.store=}")
 
     def __len__(self) -> int:
-        return len(self.store)
+        return len(self.store) + len(self.list_store)
 
     def __getitem__(self, key: str) -> str | StoreStreamValType | None:
         """Only returns the value, not the expiry"""
         if key not in self.store:
             return None
+        key_type = self.key_types[key]
         value = self.store[key]
-        if isinstance(value, list):
-            return value
-        if value[1] and self.expire_one(key):
-            return None
-        return value[0]
+        match key_type:
+            case Database.ValType.STRING:
+                (str_val, expiry) = cast(Database.StoreStrValType, value)
+                if expiry and self.expire_one(key):
+                    return None
+                return str_val
+            case Database.ValType.LIST:
+                list_val = cast(Database.StoreStreamValType, value)
+                return list_val
+            case Database.ValType.STREAM:
+                stream_val = cast(Database.StoreStreamValType, value)
+                return stream_val
 
     # TODO: remove? can't reliably set self.keys with this
     def __setitem__(self, key: str, value: StoreStrValType):
-        self.keys[key] = self.ValType.STRING
+        self.key_types[key] = Database.ValType.STRING
         self.store[key] = value
 
     def __delitem__(self, key: str):
@@ -95,7 +105,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         # if isinstance(value, list):
         #     return "stream"
         # return "string"
-        return str(self.keys[key])
+        return str(self.key_types[key])
 
     def get_expiry(self, key: str) -> datetime | None:
         if key not in self.store:
@@ -137,7 +147,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return self.xacts.pop(conn_id)
 
     def rpush(self, key: str, values: list[bytes]) -> int:
-        self.keys[key] = self.ValType.LIST
+        self.key_types[key] = Database.ValType.LIST
         if key not in self.list_store:
             self.list_store[key] = []
         self.list_store[key].extend(values)
@@ -145,7 +155,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return len(self.list_store[key])
 
     def lpush(self, key: str, values: list[bytes]) -> int:
-        self.keys[key] = self.ValType.LIST
+        self.key_types[key] = Database.ValType.LIST
         if key not in self.list_store:
             self.list_store[key] = []
         self.list_store[key] = values + self.list_store[key]
@@ -192,64 +202,78 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return key in self.store or key in self.list_store
 
     def validate_stream_id(self, key: str, id: str) -> bytes | None:
+        """Returns the error when validating the stream ID, if it exists"""
         if key not in self.store:
             return None
-        cur_value = self.store[key]
-        if not isinstance(cur_value, list):
+        key_type = self.key_types[key]
+        value = self.store[key]
+        if key_type != Database.ValType.STREAM:
+            # should change this error message
             return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+        value = cast(Database.StoreStreamValType, value)
+
         if id == "*":
             return None
-        milliseconds_time, seq_no = id.split("-")
+        splitted = id.split("-")
+        if len(splitted) != 2:
+            # should change this one too
+            return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
+        _, seq_no = splitted
         seq_no_is_star = seq_no == "*"
-
-        is_0_0 = milliseconds_time == "0" and seq_no == "0"
+        stream_id = StreamId(id)
+        if seq_no_is_star:
+            return None
+        is_0_0 = stream_id.milliseconds_time == "0" and stream_id.seq_no == "0"
         if is_0_0:
             return constants.STREAM_ID_TOO_SMALL_ERROR.encode()
-        if not cur_value:
+
+        if not value:
             return None
-        last_mst, last_seq_no = str(cur_value[-1][0]).split("-")
-        if int(milliseconds_time) < int(last_mst):
-            return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
-        elif seq_no_is_star:
-            return None
-        elif int(milliseconds_time) == int(last_mst) and int(seq_no) <= int(
-            last_seq_no
-        ):
+        last_stream_id = value[-1][0]
+        if stream_id <= last_stream_id:
             return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
         return None
 
     def xadd(self, key: str, id: str, value: dict) -> str:
         # stream key has already been validated
-        self.keys[key] = self.ValType.STREAM
+        self.key_types[key] = Database.ValType.STREAM
         if key not in self.store:
             self.store[key] = []
         cur_value = self.store[key]
         if not isinstance(cur_value, list):
             raise Exception(f"key {key} is not a stream")
         processed_id = StreamId.generate_stream_id(
-            id, str(cur_value[-1][0]) if cur_value else None
+            id, cur_value[-1][0] if cur_value else None
         )
         cur_value.append((processed_id, value))
         return str(processed_id)
 
     def xrange(self, key: str, start: str, end: str) -> bytes:
         value = self.store[key]
-        if not isinstance(value, list):
+        key_type = self.key_types[key]
+        if key_type != Database.ValType.STREAM:
             return constants.XOP_ON_NON_STREAM_ERROR.encode()
+        value = cast(Database.StoreStreamValType, value)
+
+        # support - and + queries
         if start == "-":
-            start = "0-1"
+            start_stream_id = StreamId("0-1")
         elif "-" not in start:
-            start = f"{start}-0"
+            start_stream_id = StreamId(f"{start}-0")
+        else:
+            start_stream_id = StreamId(start)
         if end == "+":
-            end = (
-                str(value[-1][0])
+            end_stream_id = (
+                value[-1][0]
                 if value
-                else f"{constants.MAX_STREAM_ID_SEQ_NO}-{constants.MAX_STREAM_ID_SEQ_NO}"
+                else StreamId(
+                    f"{constants.MAX_STREAM_ID_SEQ_NO}-{constants.MAX_STREAM_ID_SEQ_NO}"
+                )
             )
         elif "-" not in end:
-            end = f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}"
-        start_stream_id = StreamId(start)
-        end_stream_id = StreamId(end)
+            end_stream_id = StreamId(f"{end}-{constants.MAX_STREAM_ID_SEQ_NO}")
+        else:
+            end_stream_id = StreamId(end)
 
         lo = bisect.bisect_right(value, start_stream_id, key=lambda x: x[0])
         if lo >= len(value):
@@ -301,8 +325,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             stream_key = stream_keys[i]
             id = ids[i]
             value = self.store[stream_key]
-            if not isinstance(value, list):
+            key_type = self.key_types[stream_key]
+            if key_type != Database.ValType.STREAM:
                 return constants.XOP_ON_NON_STREAM_ERROR.encode()
+            value = cast(Database.StoreStreamValType, value)
             if id == "$":
                 logger.info(f"{original_lens[i]=}")
                 id = str(value[original_lens[i] - 1][0]) if value else "0-0"
@@ -339,47 +365,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
 @functools.total_ordering
 class StreamId:
+    """ID of a stream entry"""
+
     def __init__(self, id_str: str):
         milliseconds_time, seq_no = id_str.split("-")
-        self.validate(milliseconds_time, seq_no)
         self.milliseconds_time = milliseconds_time
         self.seq_no = seq_no
-
-    def validate(self, milliseconds_time: str, seq_no: str) -> bool:
-        if milliseconds_time == "0" and seq_no == "0":
-            logger.info(f"Invalid stream id {milliseconds_time}-{seq_no}")
-            return False
-        return True
-
-    @staticmethod
-    def generate_stream_id(id: str, last_id: str | None) -> "StreamId":
-        if id == "*":
-            # milliseconds_time should be current time in milliseconds
-            milliseconds_time = str(int(datetime.now().timestamp() * 1000))
-            if not last_id:
-                return StreamId(f"{milliseconds_time}-0")
-            splitted_last = last_id.split("-")
-            if splitted_last[0] == milliseconds_time:
-                return StreamId(f"{milliseconds_time}-{int(splitted_last[1]) + 1}")
-            return StreamId(f"{milliseconds_time}-0")
-
-        splitted = id.split("-")
-        if len(splitted) != 2:
-            raise Exception(f"Invalid stream id {id}")
-        milliseconds_time, seq_no = splitted
-        if not last_id:
-            if seq_no == "*":
-                seq_no = "1" if milliseconds_time == "0" else "0"
-            return StreamId(f"{milliseconds_time}-{seq_no}")
-
-        splitted_last = last_id.split("-")
-        last_milliseconds_time, last_seq_no = splitted_last
-        if seq_no == "*":
-            if milliseconds_time == last_milliseconds_time:
-                seq_no = str(int(last_seq_no) + 1)
-            else:
-                seq_no = "1" if milliseconds_time == "0" else "0"
-        return StreamId(f"{milliseconds_time}-{seq_no}")
 
     def __repr__(self) -> str:
         return f"StreamId({self.milliseconds_time}-{self.seq_no})"
@@ -399,6 +390,33 @@ class StreamId:
         if self.milliseconds_time != other.milliseconds_time:
             return self.milliseconds_time < other.milliseconds_time
         return self.seq_no < other.seq_no
+
+    @staticmethod
+    def generate_stream_id(id: str, last_id: "StreamId | None") -> "StreamId":
+        if id == "*":
+            # milliseconds_time should be current time in milliseconds
+            milliseconds_time = str(int(datetime.now().timestamp() * 1000))
+            if not last_id:
+                return StreamId(f"{milliseconds_time}-0")
+            if last_id.milliseconds_time == milliseconds_time:
+                return last_id.next_seq_id()
+            return StreamId(f"{milliseconds_time}-0")
+
+        splitted = id.split("-")
+        if len(splitted) != 2:
+            raise Exception(f"Invalid stream id {id}")
+        milliseconds_time, seq_no = splitted
+        if not last_id:
+            if seq_no == "*":
+                seq_no = "1" if milliseconds_time == "0" else "0"
+            return StreamId(f"{milliseconds_time}-{seq_no}")
+
+        if seq_no == "*":
+            if milliseconds_time == last_id.milliseconds_time:
+                seq_no = str(int(last_id.seq_no) + 1)
+            else:
+                seq_no = "1" if milliseconds_time == "0" else "0"
+        return StreamId(f"{milliseconds_time}-{seq_no}")
 
     def next_seq_id(self) -> "StreamId":
         return StreamId(f"{self.milliseconds_time}-{int(self.seq_no) + 1}")
