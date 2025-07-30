@@ -186,5 +186,8 @@ def parse_resp_cmd(
             return commands.XreadCommand(raw_cmd, keys, ids, int(timeout.data.decode()))
         else:
             return commands.XreadCommand(raw_cmd, keys, ids)
+    elif cmd_str == b"SUBSCRIBE":
+        channel_name = resp_elements[1].data
+        return commands.SubscribeCommand(raw_cmd, channel_name)
     else:
         return commands.RdbFileCommand(raw_cmd)

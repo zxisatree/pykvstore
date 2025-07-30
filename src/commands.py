@@ -715,6 +715,31 @@ class XreadCommand(Command):
         )
 
 
+class SubscribeCommand(Command):
+    def __init__(self, raw_cmd: bytes, channel_name: bytes):
+        self._raw_cmd = raw_cmd
+        self.channel_name = channel_name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        conn_id = construct_conn_id(conn)
+        channel_count = db.subscribe(self.channel_name.decode(), conn_id)
+        return data_types.RespArray(
+            [
+                data_types.RespBulkString(b"subscribe"),
+                data_types.RespBulkString(self.channel_name),
+                data_types.RespInteger(channel_count),
+            ]
+        ).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "SubscribeCommand":
+        if len(args) != 1:
+            raise exceptions.RequestCraftError("SubscribeCommand takes 1 argument")
+        return SubscribeCommand(
+            craft_command("SUBSCRIBE", *args).encode(), args[0].encode()
+        )
+
+
 def craft_command(*args: str) -> data_types.RespArray:
     return data_types.RespArray(
         list(map(lambda x: data_types.RespBulkString(x.encode()), args))

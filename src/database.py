@@ -44,6 +44,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         lambda: (Lock(), deque())
     )
     xacts: dict[ConnIdType, list] = {}
+    channels: defaultdict[tuple[int, str], list[str]] = defaultdict(list)
+
+    def subscribe(self, channel_name: str, conn_id: tuple[int, str]) -> int:
+        """Subscribe to a channel, and return the number of channels the client is subscribed to"""
+        self.channels[conn_id].append(channel_name)
+        return len(self.channels[conn_id])
 
     def __init__(self, dir: str, dbfilename: str):
         self.dir = dir
