@@ -3,11 +3,11 @@ from collections import defaultdict, deque
 from datetime import datetime
 from enum import Enum
 import functools
+import os
 import socket
 from threading import Lock, Semaphore
 import time
 from typing import cast
-import os
 
 import interfaces
 import constants
@@ -18,9 +18,10 @@ import singleton_meta
 
 
 class Database(metaclass=singleton_meta.SingletonMeta):
-    StoreStrValType = tuple[str, datetime | None]
-    StoreStreamValType = list[tuple["StreamId", dict[str, str]]]
-    ConnIdType = tuple[int, str]
+    StrVal = tuple[str, datetime | None]
+    StreamVal = list[tuple["StreamId", dict[str, str]]]
+    ListVal = list[bytes]
+    ConnId = tuple[int, str]
 
     class ValType(Enum):
         NONE = 0
@@ -38,31 +39,27 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return "list"
             return "none"
 
+    # TODO: standardise key type to bytes
     key_types: dict[str, ValType] = {}
-    store: dict[str, StoreStrValType | StoreStreamValType] = {}
-    list_store: dict[str, list[bytes]] = {}  # TODO: standardise value type to bytes
+    store: dict[str, StrVal | StreamVal | ListVal] = {}
     blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = defaultdict(
         lambda: (Lock(), deque())
     )
-    xacts: dict[ConnIdType, list] = {}
-    channels: defaultdict[ConnIdType, set[str]] = defaultdict(set)
-    subscribers: defaultdict[str, set[tuple[ConnIdType, socket.socket]]] = defaultdict(
-        set
-    )
+    xacts: dict[ConnId, list] = {}
+    channels: defaultdict[ConnId, set[str]] = defaultdict(set)
+    subscribers: defaultdict[str, set[tuple[ConnId, socket.socket]]] = defaultdict(set)
 
-    def in_subscribed_mode(self, conn_id: ConnIdType) -> bool:
+    def in_subscribed_mode(self, conn_id: ConnId) -> bool:
         return conn_id in self.channels
 
-    def subscribe(
-        self, channel_name: str, conn: socket.socket, conn_id: ConnIdType
-    ) -> int:
+    def subscribe(self, channel_name: str, conn: socket.socket, conn_id: ConnId) -> int:
         """Subscribe to a channel, and return the number of channels the client is subscribed to"""
         self.channels[conn_id].add(channel_name)
         self.subscribers[channel_name].add((conn_id, conn))
         return len(self.channels[conn_id])
 
     def unsubscribe(
-        self, channel_name: str, conn: socket.socket, conn_id: ConnIdType
+        self, channel_name: str, conn: socket.socket, conn_id: ConnId
     ) -> int:
         """Unubscribe from a channel, and return the number of channels the client is subscribed to"""
         if channel_name in self.channels[conn_id]:
@@ -70,9 +67,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             self.subscribers[channel_name].remove((conn_id, conn))
         return len(self.channels[conn_id])
 
-    def get_subscribers(
-        self, channel_name: str
-    ) -> set[tuple[ConnIdType, socket.socket]]:
+    def get_subscribers(self, channel_name: str) -> set[tuple[ConnId, socket.socket]]:
         return self.subscribers[channel_name]
 
     def __init__(self, dir: str, dbfilename: str):
@@ -90,9 +85,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         logger.info(f"db initialised with {self.store=}")
 
     def __len__(self) -> int:
-        return len(self.store) + len(self.list_store)
+        return len(self.store)
 
-    def __getitem__(self, key: str) -> str | StoreStreamValType | None:
+    def __getitem__(self, key: str) -> str | StreamVal | None:
         """Only returns the value, not the expiry"""
         if key not in self.store:
             return None
@@ -100,19 +95,19 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         value = self.store[key]
         match key_type:
             case Database.ValType.STRING:
-                (str_val, expiry) = cast(Database.StoreStrValType, value)
+                (str_val, expiry) = cast(Database.StrVal, value)
                 if expiry and self.expire_one(key):
                     return None
                 return str_val
             case Database.ValType.LIST:
-                list_val = cast(Database.StoreStreamValType, value)
+                list_val = cast(Database.StreamVal, value)
                 return list_val
             case Database.ValType.STREAM:
-                stream_val = cast(Database.StoreStreamValType, value)
+                stream_val = cast(Database.StreamVal, value)
                 return stream_val
 
     # TODO: remove? can't reliably set self.keys with this
-    def __setitem__(self, key: str, value: StoreStrValType):
+    def __setitem__(self, key: str, value: StrVal):
         self.key_types[key] = Database.ValType.STRING
         self.store[key] = value
 
@@ -131,66 +126,71 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def get_type(self, key: str) -> str:
         if key not in self.store:
             return "none"
-        # value = self.store[key]
-        # if isinstance(value, list):
-        #     return "stream"
-        # return "string"
         return str(self.key_types[key])
 
     def get_expiry(self, key: str) -> datetime | None:
         if key not in self.store:
             return None
         value = self.store[key]
-        # get_expiry only works for non stream values
-        if not isinstance(value, tuple):
-            raise Exception(f"Called get_expiry on a stream key {key=}")
-        return value[1]
+        # get_expiry only works for string values
+        key_type = self.key_types[key]
+        if key_type == Database.ValType.STRING:
+            string_val = cast(Database.StrVal, value)
+            return string_val[1]
+        else:
+            raise Exception(f"Called get_expiry on a non string key {key=}")
 
     def expire(self):
         for key, value in self.store.items():
-            if not isinstance(value, list):
-                _, expiry = value
+            key_type = self.key_types[key]
+            if key_type == Database.ValType.STRING:
+                _, expiry = cast(Database.StrVal, value)
                 if expiry and expiry < datetime.now():
                     del self.store[key]
 
     def expire_one(self, key: str) -> bool:
         # returns True if key was expired
         value = self.store[key]
-        if isinstance(value, list):
+        key_type = self.key_types[key]
+        if key_type != Database.ValType.STRING:
             return False
-        expiry = value[1]
+        _, expiry = cast(Database.StrVal, value)
         if expiry and expiry < datetime.now():
             del self.store[key]
             return True
         return False
 
-    def start_xact(self, conn_id: ConnIdType):
+    def start_xact(self, conn_id: ConnId):
         self.xacts[conn_id] = []
 
-    def xact_exists(self, conn_id: ConnIdType) -> bool:
+    def xact_exists(self, conn_id: ConnId) -> bool:
         return conn_id in self.xacts
 
-    def queue_xact_cmd(self, conn_id: ConnIdType, cmd: interfaces.Command):
+    def queue_xact_cmd(self, conn_id: ConnId, cmd: interfaces.Command):
         self.xacts[conn_id].append(cmd)
 
-    def exec_xact(self, conn_id: ConnIdType) -> list[interfaces.Command]:
+    def exec_xact(self, conn_id: ConnId) -> list[interfaces.Command]:
         return self.xacts.pop(conn_id)
 
-    def rpush(self, key: str, values: list[bytes]) -> int:
+    def rpush(self, key: str, values: ListVal) -> int:
+        if key not in self.store:
+            self.store[key] = []
+        elif key in self.store and self.key_types[key] != Database.ValType.LIST:
+            raise Exception(f"Called rpush on a non list key {key=}")
         self.key_types[key] = Database.ValType.LIST
-        if key not in self.list_store:
-            self.list_store[key] = []
-        self.list_store[key].extend(values)
+        cast(Database.ListVal, self.store[key]).extend(values)
         self.list_notify_queue(key)
-        return len(self.list_store[key])
+        return len(self.store[key])
 
-    def lpush(self, key: str, values: list[bytes]) -> int:
+    def lpush(self, key: str, values: ListVal) -> int:
+        if key not in self.store:
+            self.store[key] = []
+        elif key in self.store and self.key_types[key] != Database.ValType.LIST:
+            raise Exception(f"Called lpush on a non list key {key=}")
         self.key_types[key] = Database.ValType.LIST
-        if key not in self.list_store:
-            self.list_store[key] = []
-        self.list_store[key] = values + self.list_store[key]
+        self.store[key] = values + cast(Database.ListVal, self.store[key])
         self.list_notify_queue(key)
-        return len(self.list_store[key])
+        return len(self.store[key])
 
     def list_notify_queue(self, key: str):
         queue_lock, queue = self.blpop_waitlist[key]
@@ -199,9 +199,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 queue[0].release()
 
     def lpop(self, key: str) -> bytes:
-        return self.list_store[key].pop(0)
+        return self.get_list(key).pop(0)
 
-    def lpop_multiple(self, key: str, count: int) -> list[bytes]:
+    def lpop_multiple(self, key: str, count: int) -> ListVal:
         values = [self.lpop(key) for _ in range(count)]
         return values
 
@@ -209,7 +209,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         """Blocks indefinitely until the list is nonempty"""
         queue_lock, queue = self.blpop_waitlist[key]
         with queue_lock:
-            if key in self.list_store and len(self.list_store[key]) != 0:
+            if key in self.store and len(self.store[key]) != 0:
                 return self.lpop(key)
             else:
                 sem = Semaphore(0)
@@ -225,11 +225,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 else:
                     return None
 
-    def get_list(self, key: str) -> list[bytes]:
-        return self.list_store[key]
+    def get_list(self, key: str) -> ListVal:
+        if self.key_types[key] != Database.ValType.LIST:
+            raise Exception("Called get_list on a non list key {key=}")
+        return cast(Database.ListVal, self.store[key])
 
     def key_exists(self, key: str) -> bool:
-        return key in self.store or key in self.list_store
+        return key in self.store or key in self.store
 
     def validate_stream_id(self, key: str, id: str) -> bytes | None:
         """Returns the error when validating the stream ID, if it exists"""
@@ -240,7 +242,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         if key_type != Database.ValType.STREAM:
             # should change this error message
             return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
-        value = cast(Database.StoreStreamValType, value)
+        value = cast(Database.StreamVal, value)
 
         if id == "*":
             return None
@@ -266,12 +268,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
     def xadd(self, key: str, id: str, value: dict) -> str:
         # stream key has already been validated
+        if key in self.key_types and self.key_types[key] != Database.ValType.STREAM:
+            raise Exception(f"key {key} is not a stream")
         self.key_types[key] = Database.ValType.STREAM
         if key not in self.store:
             self.store[key] = []
-        cur_value = self.store[key]
-        if not isinstance(cur_value, list):
-            raise Exception(f"key {key} is not a stream")
+        cur_value = cast(Database.StreamVal, self.store[key])
         processed_id = StreamId.generate_stream_id(
             id, cur_value[-1][0] if cur_value else None
         )
@@ -283,7 +285,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         key_type = self.key_types[key]
         if key_type != Database.ValType.STREAM:
             return constants.XOP_ON_NON_STREAM_ERROR.encode()
-        value = cast(Database.StoreStreamValType, value)
+        value = cast(Database.StreamVal, value)
 
         # support - and + queries
         if start == "-":
@@ -359,7 +361,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             key_type = self.key_types[stream_key]
             if key_type != Database.ValType.STREAM:
                 return constants.XOP_ON_NON_STREAM_ERROR.encode()
-            value = cast(Database.StoreStreamValType, value)
+            value = cast(Database.StreamVal, value)
             if id == "$":
                 logger.info(f"{original_lens[i]=}")
                 id = str(value[original_lens[i] - 1][0]) if value else "0-0"
