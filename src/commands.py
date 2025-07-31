@@ -778,6 +778,32 @@ class SubscribeCommand(Command):
         )
 
 
+class UnsubscribeCommand(Command):
+    def __init__(self, raw_cmd: bytes, channel_name: bytes):
+        self._raw_cmd = raw_cmd
+        self.channel_name = channel_name
+        self._keyword = b"UNSUBSCRIBE"
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        conn_id = construct_conn_id(conn)
+        channel_count = db.unsubscribe(self.channel_name.decode(), conn, conn_id)
+        return data_types.RespArray(
+            [
+                data_types.RespBulkString(b"unsubscribe"),
+                data_types.RespBulkString(self.channel_name),
+                data_types.RespInteger(channel_count),
+            ]
+        ).encode()
+
+    @staticmethod
+    def craft_request(*args: str) -> "UnsubscribeCommand":
+        if len(args) != 1:
+            raise exceptions.RequestCraftError("UnsubscribeCommand takes 1 argument")
+        return UnsubscribeCommand(
+            craft_command("UNSUBSCRIBE", *args).encode(), args[0].encode()
+        )
+
+
 class PublishCommand(Command):
     def __init__(self, raw_cmd: bytes, channel_name: bytes, msg: bytes):
         self._raw_cmd = raw_cmd

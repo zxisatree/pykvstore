@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import cast
+from typing import Sequence, cast
 
 import constants
 import exceptions
@@ -91,7 +91,8 @@ class RespSimpleString(RespDataType):
 
 
 class RespArray(RespDataType):
-    def __init__(self, elements: list[RespDataType]):
+    # Sequence is covariant, list is invariant
+    def __init__(self, elements: Sequence[RespDataType]):
         self.elements = elements
 
     def __len__(self) -> int:
@@ -103,12 +104,6 @@ class RespArray(RespDataType):
             return list(res)  # enables type hinting
         else:
             return res
-
-    def __setitem__(self, idx, value: RespDataType):
-        self.elements.__setitem__(idx, value)
-
-    def __delitem__(self, idx):
-        self.elements.__delitem__(idx)
 
     def __str__(self) -> str:
         return str(self.elements)

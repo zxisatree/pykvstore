@@ -45,25 +45,34 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         lambda: (Lock(), deque())
     )
     xacts: dict[ConnIdType, list] = {}
-    channels: defaultdict[tuple[int, str], set[str]] = defaultdict(set)
-    subscribers: defaultdict[str, set[tuple[tuple[int, str], socket.socket]]] = (
-        defaultdict(set)
+    channels: defaultdict[ConnIdType, set[str]] = defaultdict(set)
+    subscribers: defaultdict[str, set[tuple[ConnIdType, socket.socket]]] = defaultdict(
+        set
     )
 
-    def in_subscribed_mode(self, conn_id: tuple[int, str]) -> bool:
+    def in_subscribed_mode(self, conn_id: ConnIdType) -> bool:
         return conn_id in self.channels
 
     def subscribe(
-        self, channel_name: str, conn: socket.socket, conn_id: tuple[int, str]
+        self, channel_name: str, conn: socket.socket, conn_id: ConnIdType
     ) -> int:
         """Subscribe to a channel, and return the number of channels the client is subscribed to"""
         self.channels[conn_id].add(channel_name)
         self.subscribers[channel_name].add((conn_id, conn))
         return len(self.channels[conn_id])
 
+    def unsubscribe(
+        self, channel_name: str, conn: socket.socket, conn_id: ConnIdType
+    ) -> int:
+        """Unubscribe from a channel, and return the number of channels the client is subscribed to"""
+        if channel_name in self.channels[conn_id]:
+            self.channels[conn_id].remove(channel_name)
+            self.subscribers[channel_name].remove((conn_id, conn))
+        return len(self.channels[conn_id])
+
     def get_subscribers(
         self, channel_name: str
-    ) -> set[tuple[tuple[int, str], socket.socket]]:
+    ) -> set[tuple[ConnIdType, socket.socket]]:
         return self.subscribers[channel_name]
 
     def __init__(self, dir: str, dbfilename: str):
@@ -298,17 +307,18 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
         lo = bisect.bisect_right(value, start_stream_id, key=lambda x: x[0])
         if lo >= len(value):
-            return data_types.RespArray([]).encode()
+            return constants.EMPTY_RESP_ARRAY.encode()
         hi = bisect.bisect_right(value, end_stream_id, key=lambda x: x[0])
         if hi >= len(value):
             hi = len(value)
 
         res = []
         for i in range(lo - 1 if lo != 0 else 0, hi):
-            flattened_kvs = []
-            for k, v in value[i][1].items():
-                flattened_kvs.append(data_types.RespBulkString(k.encode()))
-                flattened_kvs.append(data_types.RespBulkString(v.encode()))
+            flattened_kvs = [
+                data_types.RespBulkString(item.encode())
+                for items in value[i][1].items()
+                for item in items
+            ]
             res.append(
                 data_types.RespArray(
                     [

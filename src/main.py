@@ -92,10 +92,11 @@ def execute_cmd(
     elif (
         db.in_subscribed_mode(conn_id)
         and not isinstance(cmd, commands.SubscribeCommand)
+        and not isinstance(cmd, commands.UnsubscribeCommand)
         and not isinstance(cmd, commands.PingCommand)
     ):
         executed = data_types.RespSimpleError(
-            f"ERR Can't execute '{cmd.keyword.decode().lower()}': only (P|S)SUBSCRIBE / (P|S)UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
+            f"ERR Can't execute '{cmd.keyword.decode().lower()}': only SUBSCRIBE / UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
         ).encode()
     elif db.in_subscribed_mode(conn_id) and isinstance(cmd, commands.PingCommand):
         # TODO: should actually be in Commands interface

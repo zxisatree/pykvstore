@@ -189,6 +189,9 @@ def parse_resp_cmd(
     elif cmd_str == b"SUBSCRIBE":
         channel_name = resp_elements[1].data
         return commands.SubscribeCommand(raw_cmd, channel_name)
+    elif cmd_str == b"UNSUBSCRIBE":
+        channel_name = resp_elements[1].data
+        return commands.UnsubscribeCommand(raw_cmd, channel_name)
     elif cmd_str == b"PUBLISH":
         channel_name = resp_elements[1].data
         msg = resp_elements[2].data
