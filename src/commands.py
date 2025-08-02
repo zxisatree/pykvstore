@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Iterable
 
 import constants
 import data_types
@@ -10,6 +11,8 @@ import replicas
 
 
 class NoOp(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"NOOP"
@@ -19,10 +22,13 @@ class NoOp(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return NoOp(b"")
 
 
 class PingCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"PING"
@@ -39,10 +45,13 @@ class PingCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return PingCommand(craft_command("PING").encode())
 
 
 class EchoCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes, bulk_str: data_types.RespBulkString):
         self._raw_cmd = raw_cmd
         self.msg = bulk_str.data
@@ -53,8 +62,7 @@ class EchoCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("EchoCommand takes up to 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return EchoCommand(
             craft_command("ECHO", *args).encode(),
             data_types.RespBulkString(args[0].encode()),
@@ -62,6 +70,8 @@ class EchoCommand(Command):
 
 
 class SetCommand(Command):
+    expected_arg_count = [2, 3]
+
     def __init__(
         self,
         raw_cmd: bytes,
@@ -93,8 +103,7 @@ class SetCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2 and len(args) != 3:
-            raise exceptions.RequestCraftError("SetCommand takes 2 or 3 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return SetCommand(
             craft_command("SET", *args).encode(),
             data_types.RespBulkString(args[0].encode()),
@@ -104,6 +113,8 @@ class SetCommand(Command):
 
 
 class IncrCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(
         self,
         raw_cmd: bytes,
@@ -116,6 +127,7 @@ class IncrCommand(Command):
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         decoded_key = self.key.decode()
         old_value = db[decoded_key]
+        # TODO: use key_types
         # assume that old_value is always a str
         if isinstance(old_value, list):
             raise exceptions.UnsupportedOperationError(
@@ -138,12 +150,13 @@ class IncrCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("IncrCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return IncrCommand(craft_command("INCR", *args).encode(), args[0].encode())
 
 
 class GetCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes, key: bytes):
         self._raw_cmd = raw_cmd
         self.key = key
@@ -160,8 +173,7 @@ class GetCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("GetCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return GetCommand(
             craft_command("GET", *args).encode(),
             args[0].encode(),
@@ -169,6 +181,8 @@ class GetCommand(Command):
 
 
 class CommandCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"COMMAND"
@@ -178,10 +192,13 @@ class CommandCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return CommandCommand(craft_command("COMMAND").encode())
 
 
 class InfoCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"INFO"
@@ -191,10 +208,13 @@ class InfoCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return InfoCommand(craft_command("INFO").encode())
 
 
 class ReplConfCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"REPLCONF"
@@ -204,10 +224,13 @@ class ReplConfCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return ReplConfCommand(craft_command("REPLCONF").encode())
 
 
 class ReplConfAckCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"REPLCONF"
@@ -221,12 +244,13 @@ class ReplConfAckCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("ReplConfAckCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return ReplConfAckCommand(craft_command("REPLCONF", "ACK", args[0]).encode())
 
 
 class ReplConfGetAckCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"REPLCONF"
@@ -245,10 +269,13 @@ class ReplConfGetAckCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return ReplConfGetAckCommand(craft_command("REPLCONF", "GETACK").encode())
 
 
 class PsyncCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"FULLRESYNC"
@@ -266,10 +293,13 @@ class PsyncCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return PsyncCommand(craft_command("PSYNC").encode())
 
 
 class FullResyncCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, data: bytes) -> None:
         self.data = data
         self._raw_cmd = data
@@ -280,10 +310,13 @@ class FullResyncCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return FullResyncCommand(craft_command("FULLRESYNC").encode())
 
 
 class RdbFileCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, data: bytes) -> None:
         self.rdbfile = data_types.RespRdbFile(data)
         self._raw_cmd = data
@@ -295,10 +328,13 @@ class RdbFileCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return RdbFileCommand(constants.EMPTY_RDB_FILE)
 
 
 class ConfigGetCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes, key: bytes):
         self._raw_cmd = raw_cmd
         self.key = key
@@ -323,14 +359,15 @@ class ConfigGetCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("ConfigGetCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return ConfigGetCommand(
             craft_command("CONFIG", "GET", args[0]).encode(), args[0].encode()
         )
 
 
 class KeysCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes, pattern: bytes):
         self._raw_cmd = raw_cmd
         self.pattern = pattern
@@ -348,12 +385,13 @@ class KeysCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("KeysCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return KeysCommand(craft_command("KEYS", args[0]).encode(), args[0].encode())
 
 
 class WaitCommand(Command):
+    expected_arg_count = [2]
+
     def __init__(self, raw_cmd: bytes, replica_count: int, timeout: int):
         self._raw_cmd = raw_cmd
         self.replica_count = replica_count
@@ -389,14 +427,15 @@ class WaitCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2:
-            raise exceptions.RequestCraftError("WaitCommand takes 2 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return WaitCommand(
             craft_command("WAIT", *args).encode(), int(args[0]), int(args[1])
         )
 
 
 class TypeCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes, key: bytes):
         self._raw_cmd = raw_cmd
         self.key = key
@@ -411,8 +450,7 @@ class TypeCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("TypeCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return TypeCommand(
             craft_command("TYPE", *args).encode(),
             args[0].encode(),
@@ -420,6 +458,8 @@ class TypeCommand(Command):
 
 
 class MultiCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"MULTI"
@@ -431,10 +471,13 @@ class MultiCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return MultiCommand(craft_command("MULTI", *args).encode())
 
 
 class ExecCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"EXEC"
@@ -456,10 +499,13 @@ class ExecCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return ExecCommand(craft_command("EXEC", *args).encode())
 
 
 class DiscardCommand(Command):
+    expected_arg_count = [0]
+
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"DISCARD"
@@ -473,10 +519,13 @@ class DiscardCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return DiscardCommand(craft_command("DISCARD", *args).encode())
 
 
 class RpushCommand(Command):
+    expected_arg_count = [2]
+
     def __init__(
         self,
         raw_cmd: bytes,
@@ -494,8 +543,7 @@ class RpushCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2:
-            raise exceptions.RequestCraftError("RpushCommand takes 2 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return RpushCommand(
             craft_command("RPUSH", *args).encode(),
             args[0].encode(),
@@ -504,6 +552,8 @@ class RpushCommand(Command):
 
 
 class LpushCommand(Command):
+    expected_arg_count = [2]
+
     def __init__(
         self,
         raw_cmd: bytes,
@@ -521,8 +571,7 @@ class LpushCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2:
-            raise exceptions.RequestCraftError("LpushCommand takes 2 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return LpushCommand(
             craft_command("LPUSH", *args).encode(),
             args[0].encode(),
@@ -531,6 +580,8 @@ class LpushCommand(Command):
 
 
 class LpopCommand(Command):
+    expected_arg_count = [1, 2]
+
     def __init__(self, raw_cmd: bytes, key: bytes, count: int):
         self._raw_cmd = raw_cmd
         self.key = key
@@ -549,14 +600,15 @@ class LpopCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2:
-            raise exceptions.RequestCraftError("LpopCommand takes 1 or 2 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return LpopCommand(
             craft_command("LPOP", *args).encode(), args[0].encode(), int(args[1])
         )
 
 
 class BlpopCommand(Command):
+    expected_arg_count = [1, 2]
+
     def __init__(self, raw_cmd: bytes, key: bytes, timeout: float):
         self._raw_cmd = raw_cmd
         self.key = key
@@ -577,14 +629,17 @@ class BlpopCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2:
-            raise exceptions.RequestCraftError("BlpopCommand takes 1 or 2 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return BlpopCommand(
-            craft_command("LPOP", *args).encode(), args[0].encode(), int(args[1])
+            craft_command("LPOP", *args).encode(),
+            args[0].encode(),
+            int(args[1]) if len(args) > 1 else 0,
         )
 
 
 class LlenCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(
         self,
         raw_cmd: bytes,
@@ -603,8 +658,7 @@ class LlenCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2:
-            raise exceptions.RequestCraftError("LlenCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return LlenCommand(
             craft_command("LLEN", *args).encode(),
             args[0].encode(),
@@ -612,6 +666,8 @@ class LlenCommand(Command):
 
 
 class LrangeCommand(Command):
+    expected_arg_count = [3]
+
     def __init__(self, raw_cmd: bytes, key: bytes, start: int, stop: int):
         self._raw_cmd = raw_cmd
         self.key = key.decode()
@@ -639,6 +695,7 @@ class LrangeCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return LrangeCommand(
             craft_command("LRANGE", *args).encode(),
             args[0].encode(),
@@ -681,10 +738,11 @@ class XaddCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) < 2 or len(args) % 2 != 2:
-            raise exceptions.RequestCraftError(
-                "XaddCommand takes at least 2 arguments, and number of arguments must be even"
-            )
+        args_len = len(args)
+        if args_len < 2 or args_len % 2 != 0:
+            error_msg = f"{cls.__name__} takes an even number of argument(s), but {args_len} {'was' if args_len == 1 else 'were'} provided"
+            raise exceptions.RequestCraftError(error_msg)
+
         return XaddCommand(
             craft_command("XADD", *args).encode(),
             args[0].encode(),
@@ -693,6 +751,8 @@ class XaddCommand(Command):
 
 
 class XrangeCommand(Command):
+    expected_arg_count = [3]
+
     def __init__(self, raw_cmd: bytes, key: bytes, start: str, end: str):
         self._raw_cmd = raw_cmd
         self.key = key
@@ -705,8 +765,7 @@ class XrangeCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 3:
-            raise exceptions.RequestCraftError("XrangeCommand takes 3 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return XrangeCommand(
             craft_command("XRANGE", *args).encode(), args[0].encode(), args[1], args[2]
         )
@@ -732,27 +791,24 @@ class XreadCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) < 2:
-            raise exceptions.RequestCraftError(
-                "XreadCommand takes at least 2 arguments"
-            )
         if args[0].upper() == "BLOCK":
-            if len(args) < 4:
-                raise exceptions.RequestCraftError(
-                    "XreadCommand with BLOCK takes at least 4 arguments"
-                )
+            verify_arg_count(cls.__name__, [4], len(args))
             return XreadCommand(
                 craft_command("XREAD", *args).encode(),
                 list(args[2:]),
                 list(args[1:2]),
                 int(args[3]),
             )
-        return XreadCommand(
-            craft_command("XREAD", *args).encode(), list(args[1:]), list(args[0])
-        )
+        else:
+            verify_arg_count(cls.__name__, [2], len(args))
+            return XreadCommand(
+                craft_command("XREAD", *args).encode(), list(args[1:]), list(args[0])
+            )
 
 
 class SubscribeCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes, channel_name: bytes):
         self._raw_cmd = raw_cmd
         self.channel_name = channel_name
@@ -771,14 +827,15 @@ class SubscribeCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("SubscribeCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return SubscribeCommand(
             craft_command("SUBSCRIBE", *args).encode(), args[0].encode()
         )
 
 
 class UnsubscribeCommand(Command):
+    expected_arg_count = [1]
+
     def __init__(self, raw_cmd: bytes, channel_name: bytes):
         self._raw_cmd = raw_cmd
         self.channel_name = channel_name
@@ -797,14 +854,15 @@ class UnsubscribeCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 1:
-            raise exceptions.RequestCraftError("UnsubscribeCommand takes 1 argument")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return UnsubscribeCommand(
             craft_command("UNSUBSCRIBE", *args).encode(), args[0].encode()
         )
 
 
 class PublishCommand(Command):
+    expected_arg_count = [2]
+
     def __init__(self, raw_cmd: bytes, channel_name: bytes, msg: bytes):
         self._raw_cmd = raw_cmd
         self.channel_name = channel_name
@@ -827,11 +885,19 @@ class PublishCommand(Command):
 
     @classmethod
     def craft_request(cls, *args: str):
-        if len(args) != 2:
-            raise exceptions.RequestCraftError("PublishCommand takes 2 arguments")
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return PublishCommand(
             craft_command("PUBLISH", *args).encode(), args[0].encode(), args[1].encode()
         )
+
+
+def verify_arg_count(
+    command_name: str, expected_arg_count: Iterable[int], args_len: int
+):
+    """Raises a RequestCraftError if arg count does not match"""
+    if args_len not in expected_arg_count:
+        error_msg = f"{command_name} takes {'/'.join(str(i) for i in expected_arg_count)} argument(s), but {args_len} {'was' if args_len == 1 else 'were'} provided"
+        raise exceptions.RequestCraftError(error_msg)
 
 
 def craft_command(*args: str) -> data_types.RespArray:

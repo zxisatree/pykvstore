@@ -138,6 +138,7 @@ def parse_resp_cmd(
             lrange_start = int(resp_elements[2].data)
             lrange_stop = int(resp_elements[3].data)
         except ValueError:
+            # TODO: actually error this
             logger.error(f"Tried to LRANGE with non int start/stop. Defaulting to 0, 0")
             lrange_start = 0
             lrange_stop = 0
