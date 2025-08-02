@@ -11,7 +11,7 @@ from typing import cast
 
 import interfaces
 import constants
-import data_types
+from data_types import RespArray, RespBulkString, RespDataType
 from logs import logger
 import rdb
 import singleton_meta
@@ -317,19 +317,19 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         res = []
         for i in range(lo - 1 if lo != 0 else 0, hi):
             flattened_kvs = [
-                data_types.RespBulkString(item.encode())
+                RespBulkString(item.encode())
                 for items in value[i][1].items()
                 for item in items
             ]
             res.append(
-                data_types.RespArray(
+                RespArray(
                     [
-                        data_types.RespBulkString(str(value[i][0]).encode()),
-                        data_types.RespArray(flattened_kvs),
+                        RespBulkString(str(value[i][0]).encode()),
+                        RespArray(flattened_kvs),
                     ]
                 )
             )
-        return data_types.RespArray(res).encode()
+        return RespArray(res).encode()
 
     def xread(
         self, stream_keys: list[str], ids: list[str], timeout: int | None
@@ -371,29 +371,29 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if lo >= len(value):
                 return constants.NULL_BULK_RESP_STRING.encode()
 
-            inter: list[data_types.RespDataType] = []
+            inter: list[RespDataType] = []
             for i in range(lo, len(value)):
                 flattened_kvs = []
                 for k, v in value[i][1].items():
-                    flattened_kvs.append(data_types.RespBulkString(k.encode()))
-                    flattened_kvs.append(data_types.RespBulkString(v.encode()))
+                    flattened_kvs.append(RespBulkString(k.encode()))
+                    flattened_kvs.append(RespBulkString(v.encode()))
                 inter.append(
-                    data_types.RespArray(
+                    RespArray(
                         [
-                            data_types.RespBulkString(str(value[i][0]).encode()),
-                            data_types.RespArray(flattened_kvs),
+                            RespBulkString(str(value[i][0]).encode()),
+                            RespArray(flattened_kvs),
                         ]
                     )
                 )
             res.append(
-                data_types.RespArray(
+                RespArray(
                     [
-                        data_types.RespBulkString(stream_key.encode()),
-                        data_types.RespArray(inter),
+                        RespBulkString(stream_key.encode()),
+                        RespArray(inter),
                     ]
                 )
             )
-        return data_types.RespArray(res).encode()
+        return RespArray(res).encode()
 
 
 @functools.total_ordering
