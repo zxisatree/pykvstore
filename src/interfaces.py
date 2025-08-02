@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import Self, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import socket
@@ -30,7 +30,7 @@ class Command(ABC):
         conn: socket.socket,
     ) -> bytes | list[bytes]: ...
 
-    @staticmethod
+    @classmethod
     @abstractmethod
     # might raise RequestCraftError
-    def craft_request(*args: str) -> "Command": ...
+    def craft_request(cls, *args: str) -> Self: ...

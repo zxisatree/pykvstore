@@ -17,8 +17,8 @@ class NoOp(Command):
     def execute(self, db, replica_handler, conn) -> bytes:
         return constants.NO_OP_ERROR.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "NoOp":
+    @classmethod
+    def craft_request(cls, *args: str):
         return NoOp(b"")
 
 
@@ -37,8 +37,8 @@ class PingCommand(Command):
         else:
             return data_types.RespSimpleString(b"PONG").encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "PingCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return PingCommand(craft_command("PING").encode())
 
 
@@ -51,8 +51,8 @@ class EchoCommand(Command):
     def execute(self, db, replica_handler, conn) -> bytes:
         return data_types.RespSimpleString(self.msg).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "EchoCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("EchoCommand takes up to 1 argument")
         return EchoCommand(
@@ -87,8 +87,8 @@ class SetCommand(Command):
                 f"Unsupported SET command (fourth element is not 'PX') {px_cmd.data}"
             )
 
-    @staticmethod
-    def craft_request(*args: str) -> "SetCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2 and len(args) != 3:
             raise exceptions.RequestCraftError("SetCommand takes 2 or 3 arguments")
         if len(args) == 2:
@@ -136,8 +136,8 @@ class IncrCommand(Command):
         db[decoded_key] = (new_value, expiry)
         return data_types.RespInteger(int(new_value)).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "IncrCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("IncrCommand takes 1 argument")
         return IncrCommand(craft_command("INCR", *args).encode(), args[0].encode())
@@ -158,8 +158,8 @@ class GetCommand(Command):
                 return data_types.RespBulkString(str(value).encode()).encode()
         return constants.NULL_BULK_RESP_STRING.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "GetCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("GetCommand takes 1 argument")
         return GetCommand(
@@ -176,8 +176,8 @@ class CommandCommand(Command):
     def execute(self, db, replica_handler, conn) -> bytes:
         return constants.OK_SIMPLE_RESP_STRING.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "CommandCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return CommandCommand(craft_command("COMMAND").encode())
 
 
@@ -189,8 +189,8 @@ class InfoCommand(Command):
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         return replica_handler.get_info()
 
-    @staticmethod
-    def craft_request(*args: str) -> "InfoCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return InfoCommand(craft_command("INFO").encode())
 
 
@@ -202,8 +202,8 @@ class ReplConfCommand(Command):
     def execute(self, db, replica_handler, conn) -> bytes:
         return constants.OK_SIMPLE_RESP_STRING.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "ReplConfCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return ReplConfCommand(craft_command("REPLCONF").encode())
 
 
@@ -219,8 +219,8 @@ class ReplConfAckCommand(Command):
         replica_handler.ack_count += 1
         return b""
 
-    @staticmethod
-    def craft_request(*args: str) -> "ReplConfAckCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("ReplConfAckCommand takes 1 argument")
         return ReplConfAckCommand(craft_command("REPLCONF", "ACK", args[0]).encode())
@@ -243,8 +243,8 @@ class ReplConfGetAckCommand(Command):
             ]
         ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "ReplConfGetAckCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return ReplConfGetAckCommand(craft_command("REPLCONF", "GETACK").encode())
 
 
@@ -264,8 +264,8 @@ class PsyncCommand(Command):
             data_types.RespRdbFile(constants.EMPTY_RDB_FILE).encode(),
         ]
 
-    @staticmethod
-    def craft_request(*args: str) -> "PsyncCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return PsyncCommand(craft_command("PSYNC").encode())
 
 
@@ -278,8 +278,8 @@ class FullResyncCommand(Command):
     def execute(self, db, replica_handler, conn) -> bytes:
         return b""
 
-    @staticmethod
-    def craft_request(*args: str) -> "FullResyncCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return FullResyncCommand(craft_command("FULLRESYNC").encode())
 
 
@@ -293,8 +293,8 @@ class RdbFileCommand(Command):
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
         return b""
 
-    @staticmethod
-    def craft_request(*args: str) -> "RdbFileCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return RdbFileCommand(constants.EMPTY_RDB_FILE)
 
 
@@ -321,8 +321,8 @@ class ConfigGetCommand(Command):
             ).encode()
         return constants.OK_SIMPLE_RESP_STRING.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "ConfigGetCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("ConfigGetCommand takes 1 argument")
         return ConfigGetCommand(
@@ -346,8 +346,8 @@ class KeysCommand(Command):
             )
         ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "KeysCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("KeysCommand takes 1 argument")
         return KeysCommand(craft_command("KEYS", args[0]).encode(), args[0].encode())
@@ -387,8 +387,8 @@ class WaitCommand(Command):
             else len(replica_handler.slaves)
         ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "WaitCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2:
             raise exceptions.RequestCraftError("WaitCommand takes 2 arguments")
         return WaitCommand(
@@ -409,8 +409,8 @@ class TypeCommand(Command):
             ).encode()
         return data_types.RespSimpleString(b"none").encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "TypeCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("TypeCommand takes 1 argument")
         return TypeCommand(
@@ -429,8 +429,8 @@ class MultiCommand(Command):
         db.start_xact(conn_id)
         return constants.OK_SIMPLE_RESP_STRING.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "MultiCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return MultiCommand(craft_command("MULTI", *args).encode())
 
 
@@ -454,8 +454,8 @@ class ExecCommand(Command):
                 flattened.append(data_types.RespPlainString(response))
         return data_types.RespArray(flattened).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "ExecCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return ExecCommand(craft_command("EXEC", *args).encode())
 
 
@@ -471,8 +471,8 @@ class DiscardCommand(Command):
         db.exec_xact(conn_id)
         return constants.OK_SIMPLE_RESP_STRING.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "DiscardCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return DiscardCommand(craft_command("DISCARD", *args).encode())
 
 
@@ -492,8 +492,8 @@ class RpushCommand(Command):
         length = db.rpush(self.key.decode(), self.values)
         return data_types.RespInteger(length).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "RpushCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2:
             raise exceptions.RequestCraftError("RpushCommand takes 2 arguments")
         return RpushCommand(
@@ -519,8 +519,8 @@ class LpushCommand(Command):
         length = db.lpush(self.key.decode(), self.values[::-1])
         return data_types.RespInteger(length).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "LpushCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2:
             raise exceptions.RequestCraftError("LpushCommand takes 2 arguments")
         return LpushCommand(
@@ -547,8 +547,8 @@ class LpopCommand(Command):
                 [data_types.RespBulkString(value) for value in values]
             ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "LpopCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2:
             raise exceptions.RequestCraftError("LpopCommand takes 1 or 2 arguments")
         return LpopCommand(
@@ -575,8 +575,8 @@ class BlpopCommand(Command):
             # timed out
             return constants.NULL_BULK_RESP_STRING.encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "BlpopCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2:
             raise exceptions.RequestCraftError("BlpopCommand takes 1 or 2 arguments")
         return BlpopCommand(
@@ -601,8 +601,8 @@ class LlenCommand(Command):
             length = len(db.get_list(self.key.decode()))
         return data_types.RespInteger(length).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "LlenCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2:
             raise exceptions.RequestCraftError("LlenCommand takes 1 argument")
         return LlenCommand(
@@ -637,8 +637,8 @@ class LrangeCommand(Command):
             ]
         ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "LrangeCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         return LrangeCommand(
             craft_command("LRANGE", *args).encode(),
             args[0].encode(),
@@ -679,8 +679,8 @@ class XaddCommand(Command):
         )
         return data_types.RespBulkString(processed_stream_id.encode()).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "XaddCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) < 2 or len(args) % 2 != 2:
             raise exceptions.RequestCraftError(
                 "XaddCommand takes at least 2 arguments, and number of arguments must be even"
@@ -703,8 +703,8 @@ class XrangeCommand(Command):
     def execute(self, db, replica_handler, conn) -> bytes:
         return db.xrange(self.key.decode(), self.start, self.end)
 
-    @staticmethod
-    def craft_request(*args: str) -> "XrangeCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 3:
             raise exceptions.RequestCraftError("XrangeCommand takes 3 arguments")
         return XrangeCommand(
@@ -730,8 +730,8 @@ class XreadCommand(Command):
         res = db.xread(self.stream_keys, self.ids, self.timeout)
         return res
 
-    @staticmethod
-    def craft_request(*args: str) -> "XreadCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) < 2:
             raise exceptions.RequestCraftError(
                 "XreadCommand takes at least 2 arguments"
@@ -769,8 +769,8 @@ class SubscribeCommand(Command):
             ]
         ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "SubscribeCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("SubscribeCommand takes 1 argument")
         return SubscribeCommand(
@@ -795,8 +795,8 @@ class UnsubscribeCommand(Command):
             ]
         ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "UnsubscribeCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 1:
             raise exceptions.RequestCraftError("UnsubscribeCommand takes 1 argument")
         return UnsubscribeCommand(
@@ -825,8 +825,8 @@ class PublishCommand(Command):
             len(db.get_subscribers(self.channel_name.decode()))
         ).encode()
 
-    @staticmethod
-    def craft_request(*args: str) -> "PublishCommand":
+    @classmethod
+    def craft_request(cls, *args: str):
         if len(args) != 2:
             raise exceptions.RequestCraftError("PublishCommand takes 2 arguments")
         return PublishCommand(
