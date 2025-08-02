@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta
-
 import commands
 import data_types
 from logs import logger
@@ -56,12 +54,7 @@ def parse_resp_cmd(
         px_cmd = resp_elements[3]
         expiry = resp_elements[4]
         commands.SetCommand.validate_px(px_cmd)
-        return commands.SetCommand(
-            raw_cmd,
-            key,
-            value,
-            datetime.now() + timedelta(milliseconds=int(expiry.data)),
-        )
+        return commands.SetCommand(raw_cmd, key, value, expiry)
     elif cmd_str == b"GET":
         key = resp_elements[1]
         return commands.GetCommand(raw_cmd, key.data)

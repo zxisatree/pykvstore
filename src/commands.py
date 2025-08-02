@@ -67,12 +67,16 @@ class SetCommand(Command):
         raw_cmd: bytes,
         key: data_types.RespBulkString,
         value: data_types.RespBulkString,
-        expiry: datetime | None,
+        expiry: data_types.RespBulkString | None,
     ):
         self._raw_cmd = raw_cmd
         self.key = key.data
         self.value = value.data
-        self.expiry = expiry
+        self.expiry = (
+            (datetime.now() + timedelta(milliseconds=int(expiry.data)))
+            if expiry
+            else None
+        )
         self._keyword = b"SET"
 
     def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
@@ -91,15 +95,11 @@ class SetCommand(Command):
     def craft_request(cls, *args: str):
         if len(args) != 2 and len(args) != 3:
             raise exceptions.RequestCraftError("SetCommand takes 2 or 3 arguments")
-        if len(args) == 2:
-            expiry = None
-        else:
-            expiry = datetime.now() + timedelta(milliseconds=int(args[2]))
         return SetCommand(
             craft_command("SET", *args).encode(),
             data_types.RespBulkString(args[0].encode()),
             data_types.RespBulkString(args[1].encode()),
-            expiry,
+            data_types.RespBulkString(args[2].encode()) if len(args) > 2 else None,
         )
 
 
