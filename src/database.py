@@ -39,16 +39,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return "list"
             return "none"
 
-    # TODO: standardise key type to bytes
-    key_types: dict[str, ValType] = {}
-    store: dict[str, StrVal | StreamVal | ListVal] = {}
-    blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = defaultdict(
-        lambda: (Lock(), deque())
-    )
-    xacts: dict[ConnId, list] = {}
-    channels: defaultdict[ConnId, set[str]] = defaultdict(set)
-    subscribers: defaultdict[str, set[tuple[ConnId, socket.socket]]] = defaultdict(set)
-
     def in_subscribed_mode(self, conn_id: ConnId) -> bool:
         return conn_id in self.channels
 
@@ -71,6 +61,20 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return self.subscribers[channel_name]
 
     def __init__(self, dir: str, dbfilename: str):
+        # TODO: standardise key type to bytes
+        self.store: dict[
+            str, Database.StrVal | Database.StreamVal | Database.ListVal
+        ] = {}
+        self.key_types: dict[str, Database.ValType] = {}
+        self.blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = (
+            defaultdict(lambda: (Lock(), deque()))
+        )
+        self.xacts: dict[Database.ConnId, list] = {}
+        self.channels: defaultdict[Database.ConnId, set[str]] = defaultdict(set)
+        self.subscribers: defaultdict[
+            str, set[tuple[Database.ConnId, socket.socket]]
+        ] = defaultdict(set)
+
         self.dir = dir
         self.dbfilename = dbfilename
         file_path = os.path.join(self.dir, self.dbfilename)
@@ -140,13 +144,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         else:
             raise Exception(f"Called get_expiry on a non string key {key=}")
 
-    def expire(self):
-        for key, value in self.store.items():
-            key_type = self.key_types[key]
-            if key_type == Database.ValType.STRING:
-                _, expiry = cast(Database.StrVal, value)
-                if expiry and expiry < datetime.now():
-                    del self.store[key]
+    # def expire(self):
+    #     for key, value in self.store.items():
+    #         key_type = self.key_types[key]
+    #         if key_type == Database.ValType.STRING:
+    #             _, expiry = cast(Database.StrVal, value)
+    #             if expiry and expiry < datetime.now():
+    #                 del self.store[key]
 
     def expire_one(self, key: str) -> bool:
         # returns True if key was expired
@@ -340,6 +344,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             if timeout != 0:
                 time.sleep(timeout / 1e3)
             else:
+                # wait until there is a new element
+                # just need a map of stream_keys to threads to wake up
                 while True:
                     time.sleep(0.5)
                     new_lens = [
