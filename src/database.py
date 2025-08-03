@@ -5,7 +5,7 @@ from enum import Enum
 import functools
 import os
 import socket
-from threading import Lock, Semaphore
+from threading import Lock, RLock, Semaphore
 import time
 from typing import cast
 
@@ -15,6 +15,71 @@ from data_types import RespArray, RespBulkString, RespDataType
 from logs import logger
 import rdb
 import singleton_meta
+
+
+class ThreadsafeDict[KT, VT](dict):
+    def __init__(self, *args, **kwargs):
+        self.lock = Lock()
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key: KT) -> VT:
+        with self.lock:
+            return super().__getitem__(key)
+
+    def __setitem__(self, key: KT, value: VT):
+        with self.lock:
+            return super().__setitem__(key, value)
+
+    def __contains__(self, key: KT) -> bool:
+        with self.lock:
+            return super().__contains__(key)
+
+    def __len__(self) -> int:
+        with self.lock:
+            return super().__len__()
+
+    def __delitem__(self, key: KT):
+        with self.lock:
+            return super().__delitem__(key)
+
+    def __str__(self) -> str:
+        return super().__str__()
+
+    def __repr__(self) -> str:
+        return f"ThreadsafeDict{super().__repr__()}"
+
+
+class ThreadsafeDefaultdict[KT, VT](defaultdict):
+    def __init__(self, *args, **kwargs):
+        # defaultdict might call __setitem__ in __getitem__
+        self.lock = RLock()
+        super().__init__(*args, **kwargs)
+
+    def __getitem__(self, key: KT) -> VT:
+        with self.lock:
+            return super().__getitem__(key)
+
+    def __setitem__(self, key: KT, value: VT):
+        with self.lock:
+            return super().__setitem__(key, value)
+
+    def __contains__(self, key: KT) -> bool:
+        with self.lock:
+            return super().__contains__(key)
+
+    def __len__(self) -> int:
+        with self.lock:
+            return super().__len__()
+
+    def __delitem__(self, key: KT):
+        with self.lock:
+            return super().__delitem__(key)
+
+    def __str__(self) -> str:
+        return super().__str__()
+
+    def __repr__(self) -> str:
+        return f"ThreadsafeDefaultdict{super().__repr__()}"
 
 
 class Database(metaclass=singleton_meta.SingletonMeta):
@@ -39,41 +104,22 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return "list"
             return "none"
 
-    def in_subscribed_mode(self, conn_id: ConnId) -> bool:
-        return conn_id in self.channels
-
-    def subscribe(self, channel_name: str, conn: socket.socket, conn_id: ConnId) -> int:
-        """Subscribe to a channel, and return the number of channels the client is subscribed to"""
-        self.channels[conn_id].add(channel_name)
-        self.subscribers[channel_name].add((conn_id, conn))
-        return len(self.channels[conn_id])
-
-    def unsubscribe(
-        self, channel_name: str, conn: socket.socket, conn_id: ConnId
-    ) -> int:
-        """Unubscribe from a channel, and return the number of channels the client is subscribed to"""
-        if channel_name in self.channels[conn_id]:
-            self.channels[conn_id].remove(channel_name)
-            self.subscribers[channel_name].remove((conn_id, conn))
-        return len(self.channels[conn_id])
-
-    def get_subscribers(self, channel_name: str) -> set[tuple[ConnId, socket.socket]]:
-        return self.subscribers[channel_name]
-
     def __init__(self, dir: str, dbfilename: str):
         # TODO: standardise key type to bytes
-        self.store: dict[
+        self.store: ThreadsafeDict[
             str, Database.StrVal | Database.StreamVal | Database.ListVal
-        ] = {}
-        self.key_types: dict[str, Database.ValType] = {}
-        self.blpop_waitlist: defaultdict[str, tuple[Lock, deque[Semaphore]]] = (
-            defaultdict(lambda: (Lock(), deque()))
+        ] = ThreadsafeDict()
+        self.key_types: ThreadsafeDict[str, Database.ValType] = ThreadsafeDict()
+        self.blpop_waitlist: ThreadsafeDefaultdict[
+            str, tuple[Lock, deque[Semaphore]]
+        ] = ThreadsafeDefaultdict(lambda: (Lock(), deque()))
+        self.xacts: ThreadsafeDict[Database.ConnId, list] = ThreadsafeDict()
+        self.channels: ThreadsafeDefaultdict[Database.ConnId, set[str]] = (
+            ThreadsafeDefaultdict(set)
         )
-        self.xacts: dict[Database.ConnId, list] = {}
-        self.channels: defaultdict[Database.ConnId, set[str]] = defaultdict(set)
-        self.subscribers: defaultdict[
+        self.subscribers: ThreadsafeDefaultdict[
             str, set[tuple[Database.ConnId, socket.socket]]
-        ] = defaultdict(set)
+        ] = ThreadsafeDefaultdict(set)
 
         self.dir = dir
         self.dbfilename = dbfilename
@@ -144,14 +190,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         else:
             raise Exception(f"Called get_expiry on a non string key {key=}")
 
-    # def expire(self):
-    #     for key, value in self.store.items():
-    #         key_type = self.key_types[key]
-    #         if key_type == Database.ValType.STRING:
-    #             _, expiry = cast(Database.StrVal, value)
-    #             if expiry and expiry < datetime.now():
-    #                 del self.store[key]
-
     def expire_one(self, key: str) -> bool:
         # returns True if key was expired
         value = self.store[key]
@@ -175,6 +213,27 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
     def exec_xact(self, conn_id: ConnId) -> list[interfaces.Command]:
         return self.xacts.pop(conn_id)
+
+    def in_subscribed_mode(self, conn_id: ConnId) -> bool:
+        return conn_id in self.channels
+
+    def subscribe(self, channel_name: str, conn: socket.socket, conn_id: ConnId) -> int:
+        """Subscribe to a channel, and return the number of channels the client is subscribed to"""
+        self.channels[conn_id].add(channel_name)
+        self.subscribers[channel_name].add((conn_id, conn))
+        return len(self.channels[conn_id])
+
+    def unsubscribe(
+        self, channel_name: str, conn: socket.socket, conn_id: ConnId
+    ) -> int:
+        """Unubscribe from a channel, and return the number of channels the client is subscribed to"""
+        if channel_name in self.channels[conn_id]:
+            self.channels[conn_id].remove(channel_name)
+            self.subscribers[channel_name].remove((conn_id, conn))
+        return len(self.channels[conn_id])
+
+    def get_subscribers(self, channel_name: str) -> set[tuple[ConnId, socket.socket]]:
+        return self.subscribers[channel_name]
 
     def rpush(self, key: str, values: ListVal) -> int:
         if key not in self.store:
