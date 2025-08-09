@@ -1,7 +1,7 @@
 import socket
 
-import database
+ConnId = tuple[int, str]
 
 
-def construct_conn_id(conn: socket.socket) -> database.Database.ConnId:
+def construct_conn_id(conn: socket.socket) -> ConnId:
     return (conn.fileno(), conn.getsockname())

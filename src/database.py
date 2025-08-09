@@ -5,7 +5,7 @@ from enum import Enum
 import functools
 import os
 import socket
-from threading import Lock, RLock, Semaphore
+from threading import Condition, Lock, RLock, Semaphore
 import time
 from typing import cast
 
@@ -15,6 +15,7 @@ from data_types import RespArray, RespBulkString, RespDataType
 from logs import logger
 import rdb
 import singleton_meta
+from utils import ConnId
 
 
 class ThreadsafeDict[KT, VT](dict):
@@ -86,7 +87,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     StrVal = tuple[str, datetime | None]
     StreamVal = list[tuple["StreamId", dict[str, str]]]
     ListVal = list[bytes]
-    ConnId = tuple[int, str]
 
     class ValType(Enum):
         NONE = 0
@@ -110,15 +110,20 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             str, Database.StrVal | Database.StreamVal | Database.ListVal
         ] = ThreadsafeDict()
         self.key_types: ThreadsafeDict[str, Database.ValType] = ThreadsafeDict()
+        # map of keys of streams to threads waiting for new elements
+        self.stream_waitlist: ThreadsafeDefaultdict[
+            str, tuple[Lock, set[Semaphore]]
+        ] = ThreadsafeDefaultdict(lambda: (Lock(), set()))
+        # map of keys of lists to threads waiting for new elements
         self.blpop_waitlist: ThreadsafeDefaultdict[
             str, tuple[Lock, deque[Semaphore]]
         ] = ThreadsafeDefaultdict(lambda: (Lock(), deque()))
-        self.xacts: ThreadsafeDict[Database.ConnId, list] = ThreadsafeDict()
-        self.channels: ThreadsafeDefaultdict[Database.ConnId, set[str]] = (
-            ThreadsafeDefaultdict(set)
+        self.xacts: ThreadsafeDict[ConnId, list] = ThreadsafeDict()
+        self.channels: ThreadsafeDefaultdict[ConnId, set[str]] = ThreadsafeDefaultdict(
+            set
         )
         self.subscribers: ThreadsafeDefaultdict[
-            str, set[tuple[Database.ConnId, socket.socket]]
+            str, set[tuple[ConnId, socket.socket]]
         ] = ThreadsafeDefaultdict(set)
 
         self.dir = dir
@@ -341,6 +346,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             id, cur_value[-1][0] if cur_value else None
         )
         cur_value.append((processed_id, value))
+        waitlist_lock, waitlist = self.stream_waitlist[key]
+        with waitlist_lock:
+            for sws in waitlist:
+                sws.release()
         return str(processed_id)
 
     def xrange(self, key: str, start: str, end: str) -> bytes:
@@ -405,18 +414,18 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             else:
                 # wait until there is a new element
                 # just need a map of stream_keys to threads to wake up
-                while True:
-                    time.sleep(0.5)
-                    new_lens = [
-                        len(self.store[stream_key]) for stream_key in stream_keys
-                    ]
-                    to_break = False
-                    for i in range(len(original_lens)):
-                        if new_lens[i] != original_lens[i]:
-                            to_break = True
-                    if to_break:
-                        logger.info(f"{new_lens=}")
-                        break
+                new_lens = [len(self.store[stream_key]) for stream_key in stream_keys]
+                any_new_elements = any(
+                    original_lens[i] != new_lens[i] for i in range(len(original_lens))
+                )
+                if not any_new_elements:
+                    sem = Semaphore(value=0)
+                    for stream_key in stream_keys:
+                        waitlist_lock, waitlist = self.stream_waitlist[stream_key]
+                        with waitlist_lock:
+                            waitlist.add(sem)
+                    sem.acquire()
+                logger.info(f"{new_lens=}")
 
         res = []
         for i in range(len(stream_keys)):
