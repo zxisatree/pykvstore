@@ -1,6 +1,6 @@
 import bisect
-from collections import defaultdict, deque
-from datetime import datetime
+from collections import defaultdict
+from datetime import datetime, timedelta
 from enum import Enum
 import functools
 import os
@@ -115,9 +115,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             str, tuple[Lock, set[Semaphore]]
         ] = ThreadsafeDefaultdict(lambda: (Lock(), set()))
         # map of keys of lists to threads waiting for new elements
-        self.blpop_waitlist: ThreadsafeDefaultdict[
-            str, tuple[Lock, deque[Semaphore]]
-        ] = ThreadsafeDefaultdict(lambda: (Lock(), deque()))
+        self.blpop_waitlist: ThreadsafeDefaultdict[str, Condition] = (
+            ThreadsafeDefaultdict(Condition)
+        )
         self.xacts: ThreadsafeDict[ConnId, list] = ThreadsafeDict()
         self.channels: ThreadsafeDefaultdict[ConnId, set[str]] = ThreadsafeDefaultdict(
             set
@@ -261,10 +261,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return len(self.store[key])
 
     def list_notify_queue(self, key: str):
-        queue_lock, queue = self.blpop_waitlist[key]
-        with queue_lock:
-            if queue:
-                queue[0].release()
+        cv = self.blpop_waitlist[key]
+        with cv:
+            cv.notify()
 
     def lpop(self, key: str) -> bytes:
         return self.get_list(key).pop(0)
@@ -274,24 +273,20 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return values
 
     def blpop_timeout(self, key: str, timeout: float | None) -> bytes | None:
-        """Blocks indefinitely until the list is nonempty"""
-        queue_lock, queue = self.blpop_waitlist[key]
-        with queue_lock:
-            if key in self.store and len(self.store[key]) != 0:
-                return self.lpop(key)
-            else:
-                sem = Semaphore(0)
-                queue.append(sem)
-                queue_lock.release()
-                acquire_res = sem.acquire(timeout=timeout)
-                queue_lock.acquire()
-                if acquire_res:
-                    # we succesfully acquired
-                    # if the thread is notified, it must have been the leftmost in the queue
-                    queue.popleft()
-                    return self.lpop(key)
-                else:
+        """Blocks until the list is nonempty or timeout is reached"""
+        if key in self.store and len(self.store[key]) != 0:
+            return self.lpop(key)
+        cv = self.blpop_waitlist[key]
+        end_time = None if timeout is None else time.monotonic() + timeout
+        with cv:
+            while key not in self.store or len(self.store[key]) == 0:
+                remaining = None if end_time is None else end_time - time.monotonic()
+                if remaining is not None and remaining < 0:
+                    # timed out
                     return None
+                was_notified = cv.wait(remaining)
+                if was_notified:
+                    return self.lpop(key)
 
     def get_list(self, key: str) -> ListVal:
         if self.key_types[key] != Database.ValType.LIST:
