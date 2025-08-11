@@ -11,6 +11,7 @@ def parse_cmd(cmd: bytes) -> list[commands.Command]:
         resp_data, pos = data_types.dispatch(cmd, pos)
         logger.info(f"Codec.parse {resp_data=}, {pos=}")
         match resp_data:
+            # works like an isinstance, does not actually instantiate new instances every fn call
             case data_types.RespArray():
                 final_cmds.append(parse_resp_cmd(resp_data, cmd, orig, pos))
             case data_types.RespSimpleString():

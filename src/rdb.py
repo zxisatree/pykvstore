@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, UTC
 
 import constants
 from logs import logger
@@ -7,21 +7,22 @@ from logs import logger
 class RdbFile:
     def __init__(self, data: bytes):
         self.data = data
-        self.idx = 9  # ignore magic string and version number
+        self.idx = 9  # start after magic string and version number
         self.buffer = []
-        self.key_values: dict[str, tuple[str, datetime.datetime | None]] = {}
+        # rdb file only supports string types
+        self.key_values: dict[str, tuple[str, datetime | None]] = {}
         err = self.read_rdb()
         if err is not None:
             logger.error(
                 f"Failed to read RDB file with error {err}, defaulting to empty file"
             )
             self.data = constants.EMPTY_RDB_FILE
-            self.read_rdb()
 
     def __len__(self) -> int:
         return len(self.data)
 
     def read_rdb(self) -> str | None:
+        """Recursively parses the file by advancing self.idx and calling self.parse"""
         sanity_check = self.data[0:5]
         if sanity_check != b"REDIS":
             return f"Invalid RDB file, magic bytes are not REDIS: {sanity_check}"
@@ -75,6 +76,7 @@ class RdbFile:
             return val
 
     def parse(self):
+        """Parses the element at the current self.idx location in the file"""
         # logger.info(f"{self.data[self.idx:]=}")
         op_code = self.read(1)
         match op_code:
@@ -88,16 +90,16 @@ class RdbFile:
                 self.buffer.append(("db", db_selector))
             case b"\xfd":
                 # expiry time in s
-                expiry = datetime.datetime.fromtimestamp(
-                    int.from_bytes(self.read(4), "little"), datetime.UTC
+                expiry = datetime.fromtimestamp(
+                    int.from_bytes(self.read(4), "little"), UTC
                 )
                 expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))
                 self.key_values[key.decode()] = (value.decode(), expiry)
             case b"\xfc":
                 # expiry time in ms
-                expiry = datetime.datetime.fromtimestamp(
-                    int.from_bytes(self.read(8), "little") / 1e3, datetime.UTC
+                expiry = datetime.fromtimestamp(
+                    int.from_bytes(self.read(8), "little") / 1e3, UTC
                 )
                 expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))

@@ -1,6 +1,6 @@
 import bisect
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 import functools
 import os
@@ -19,6 +19,8 @@ from utils import ConnId
 
 
 class ThreadsafeDict[KT, VT](dict):
+    """Coarse locking wrapper over a dict"""
+
     def __init__(self, *args, **kwargs):
         self.lock = Lock()
         super().__init__(*args, **kwargs)
@@ -51,6 +53,8 @@ class ThreadsafeDict[KT, VT](dict):
 
 
 class ThreadsafeDefaultdict[KT, VT](defaultdict):
+    """Coarse locking wrapper over a defaultdict"""
+
     def __init__(self, *args, **kwargs):
         # defaultdict might call __setitem__ in __getitem__
         self.lock = RLock()
@@ -118,6 +122,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.blpop_waitlist: ThreadsafeDefaultdict[str, Condition] = (
             ThreadsafeDefaultdict(Condition)
         )
+        # xacts can only be started explicitly through a single function, so we avoid the overhead of a defaultdict here
         self.xacts: ThreadsafeDict[ConnId, list] = ThreadsafeDict()
         self.channels: ThreadsafeDefaultdict[ConnId, set[str]] = ThreadsafeDefaultdict(
             set
@@ -176,7 +181,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return str(self.store)
 
     def __repr__(self) -> str:
-        return f"Store({repr(self.store)})"
+        return f"Database({repr(self.store)})"
 
     def get_type(self, key: str) -> str:
         if key not in self.store:
@@ -217,7 +222,8 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.xacts[conn_id].append(cmd)
 
     def exec_xact(self, conn_id: ConnId) -> list[interfaces.Command]:
-        return self.xacts.pop(conn_id)
+        res = self.xacts.pop(conn_id)
+        return res
 
     def in_subscribed_mode(self, conn_id: ConnId) -> bool:
         return conn_id in self.channels
