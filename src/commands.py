@@ -15,7 +15,6 @@ import exceptions
 from interfaces import Command
 from logs import logger
 from utils import construct_conn_id
-import replicas
 
 
 class NoOp(Command):
@@ -95,7 +94,7 @@ class SetCommand(Command):
         )
         self._keyword = b"SET"
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         replica_handler.propogate(self._raw_cmd)
         db[self.key.decode()] = (self.value.decode(), self.expiry)
         return constants.OK_SIMPLE_RESP_STRING.encode()
@@ -130,7 +129,7 @@ class IncrCommand(Command):
         self.key = key
         self._keyword = b"INCR"
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         decoded_key = self.key.decode()
         old_value = db[decoded_key]
         # TODO: use key_types
@@ -209,7 +208,7 @@ class InfoCommand(Command):
         self._raw_cmd = raw_cmd
         self._keyword = b"INFO"
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         return replica_handler.get_info()
 
     @classmethod
@@ -241,7 +240,7 @@ class ReplConfAckCommand(Command):
         self._raw_cmd = raw_cmd
         self._keyword = b"REPLCONF"
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         logger.info(
             f"incrementing {replica_handler.ack_count=} to {replica_handler.ack_count + 1}"
         )
@@ -261,7 +260,7 @@ class ReplConfGetAckCommand(Command):
         self._raw_cmd = raw_cmd
         self._keyword = b"REPLCONF"
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         replica_handler.propogate(self._raw_cmd)
         return RespArray(
             [
@@ -284,9 +283,7 @@ class PsyncCommand(Command):
         self._raw_cmd = raw_cmd
         self._keyword = b"FULLRESYNC"
 
-    def execute(
-        self, db, replica_handler: replicas.ReplicaHandler, conn
-    ) -> list[bytes]:
+    def execute(self, db, replica_handler, conn) -> list[bytes]:
         replica_handler.add_slave(conn)
         return [
             RespSimpleString(
@@ -327,7 +324,7 @@ class RdbFileCommand(Command):
         self._keyword = b""
 
     # slave received a RDB file
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         return b""
 
     @classmethod
@@ -402,7 +399,7 @@ class WaitCommand(Command):
         self.timeout = timedelta(milliseconds=timeout)
         self._keyword = b"WAIT"
 
-    def execute(self, db, replica_handler: replicas.ReplicaHandler, conn) -> bytes:
+    def execute(self, db, replica_handler, conn) -> bytes:
         now = datetime.now()
         end = now + self.timeout
         replica_handler.ack_count = 0

@@ -1,8 +1,8 @@
 import argparse
-import os
 import select
 import socket
 import threading
+from typing import Sequence
 
 from sys import path
 from pathlib import Path
@@ -20,8 +20,8 @@ from utils import construct_conn_id
 import replicas
 
 
-def main():
-    either = validate_parse_args(setup_argparser().parse_args())
+def main(args: Sequence[str] | None = None):
+    either = validate_parse_args(setup_argparser().parse_args(args))
     if either[1] is not None:
         logger.error(f"Error parsing command line arguments: {either[1]}")
         return
@@ -31,28 +31,60 @@ def main():
         False if replicaof else True, "localhost", port, replicaof, db
     )
 
+    # for signalling to the accepting thread to close
+    # automatically cleaned up after program exits
+    read_socket, write_socket = socket.socketpair()
+
+    logger.info(f"Started server on {port=}")
     try:
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        socket.create_server
-        if os.name not in ("nt", "cygwin"):
-            try:
-                server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            except:
-                # dirty fix for non linux to just ignore the error
-                pass
-        server_socket.bind(("localhost", port))
-        logger.info(f"Started server on {port=}")
+        accept_thread = threading.Thread(
+            target=accept_conns, args=(read_socket, port, db, replica_handler)
+        )
+        logger.info("starting thread")
+        accept_thread.start()
+        # wait indefinitely, but keep stdin open
         while True:
-            server_socket.listen()
-            ready = select.select([server_socket], [], [], 0.5)
+            input()
+    except (KeyboardInterrupt, EOFError):
+        # keyboard interrupts are EOFErrors during input on pwsh nested in bash in a vscode terminal
+        pass
+    finally:
+        logger.info("cleaning up...")
+        write_socket.close()
+        logger.info(
+            f"closed write socket, waiting for accept_thread to join in {constants.CONN_TIMEOUT}s..."
+        )
+        # wait for accept_thread only if it has been created
+        try:
+            accept_thread.join()
+        except (UnboundLocalError, RuntimeError):
+            # UnboundLocalError: if variable has not been created, RuntimeError: thread has not been started
+            pass
+        logger.info("accept_thread joined.")
+
+
+def accept_conns(
+    read_socket: socket.socket,
+    port: int,
+    db: database.Database,
+    replica_handler: replicas.ReplicaHandler,
+):
+    try:
+        server_socket = socket.create_server(("localhost", port))
+        while True:
+            ready = select.select([server_socket, read_socket], [], [])
             if ready[0]:
+                if read_socket in ready[0]:
+                    break
                 conn, addr = server_socket.accept()
                 thread = threading.Thread(
                     target=handle_conn, args=(conn, addr, db, replica_handler)
                 )
                 thread.daemon = True
                 thread.start()
+        logger.info("accept_conns exiting")
     except Exception:
+        # adds exception details automatically
         logger.exception("main thread exception")
 
 
