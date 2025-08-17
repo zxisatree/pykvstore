@@ -117,7 +117,7 @@ class ZcardCommand(Command):
 
 
 class ZscoreCommand(Command):
-    expected_arg_count = [1]
+    expected_arg_count = [2]
 
     def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
         self._raw_cmd = raw_cmd
@@ -137,6 +137,29 @@ class ZscoreCommand(Command):
         verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return ZscoreCommand(
             craft_command("ZSCORE", *args).encode(),
+            args[0].encode(),
+            args[1].encode(),
+        )
+
+
+class ZremCommand(Command):
+    expected_arg_count = [2]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZREM"
+        self.key = key
+        self.name = name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zrem(self.key, self.name)
+        return RespInteger(result).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZremCommand(
+            craft_command("ZREM", *args).encode(),
             args[0].encode(),
             args[1].encode(),
         )

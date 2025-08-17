@@ -105,13 +105,6 @@ class SortedSet:
     def __len__(self):
         return len(self.set)
 
-    # def __getitem__(self, idx):
-    #     if isinstance(slice, idx):
-    #         idx_slice = cast(slice, idx)
-    #         return self.set[idx_slice.start : idx_slice.stop : idx_slice.step]
-    #     else:
-    #         return self.set[idx]
-
     def get_slice(self, start: int, stop: int):
         """exclusive of stop"""
         return self.set[start:stop]
@@ -141,6 +134,13 @@ class SortedSet:
 
     def add(self, name: bytes, score: float) -> int:
         return self.add_item(SortedSet.Item(score, name))
+
+    def remove(self, name: bytes) -> int:
+        for idx, item in enumerate(self.set):
+            if item.name == name:
+                self.set.pop(idx)
+                return 1
+        return 0
 
 
 class Database(metaclass=singleton_meta.SingletonMeta):
@@ -228,6 +228,17 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         value = self.store[decoded_key]
         set_val = cast(SortedSet, value)
         return set_val.score(name)
+
+    def zrem(self, key: bytes, name: bytes) -> int:
+        decoded_key = key.decode()
+        if (
+            decoded_key not in self.store
+            or self.key_types[decoded_key] != Database.ValType.SET
+        ):
+            return 0
+        value = self.store[decoded_key]
+        set_val = cast(SortedSet, value)
+        return set_val.remove(name)
 
     def __init__(self, dir: str, dbfilename: str):
         # TODO: standardise key type to bytes
