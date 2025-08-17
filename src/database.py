@@ -94,11 +94,11 @@ class SortedSet:
     @dataclass(order=True)
     class Item:
         score: float
-        name: str
+        name: bytes
 
     def __init__(self) -> None:
         # constant time lookup of identifiers
-        self.names: set[str] = set()
+        self.names: set[bytes] = set()
         # counterintuitive, but the list acts as the main data source
         self.set: list[SortedSet.Item] = list()
 
@@ -116,23 +116,30 @@ class SortedSet:
         """exclusive of stop"""
         return self.set[start:stop]
 
-    def rank(self, name: str):
+    def rank(self, name: bytes):
         for idx, item in enumerate(self.set):
             if item.name == name:
                 return idx
         return -1
 
-    def add_item(self, item: Item) -> int:
-        logger.info(f"{item=}")
-        logger.info(f"{self.names=}")
-        logger.info(f"{item.name in self.names=}")
-        if item.name in self.names:
-            return 0
-        bisect.insort(self.set, item)
-        self.names.add(item.name)
-        return 1
+    def score(self, name: bytes) -> float:
+        for item in self.set:
+            if item.name == name:
+                return item.score
+        return -1
 
-    def add(self, name: str, score: float) -> int:
+    def add_item(self, item: Item) -> int:
+        if item.name in self.names:
+            for stored_item in self.set:
+                if stored_item.name == item.name:
+                    stored_item.score = item.score
+            return 0
+        else:
+            bisect.insort(self.set, item)
+            self.names.add(item.name)
+            return 1
+
+    def add(self, name: bytes, score: float) -> int:
         return self.add_item(SortedSet.Item(score, name))
 
 
@@ -170,7 +177,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         key_type = self.key_types[decoded_key]
         if key_type == Database.ValType.SET:
             set_val = cast(SortedSet, value)
-            return set_val.add(name.decode(), score)
+            return set_val.add(name, score)
         else:
             logger.error("tried to Database.zadd with non SET key")
             return 0
@@ -184,7 +191,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return -1
         value = self.store[decoded_key]
         set_val = cast(SortedSet, value)
-        return set_val.rank(name.decode())
+        return set_val.rank(name)
 
     def zrange(self, key: bytes, start: int, end: int) -> list[SortedSet.Item]:
         """[start:end+1], inclusive of end"""
@@ -210,6 +217,17 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         ):
             return 0
         return len(self.store[decoded_key])
+
+    def zscore(self, key: bytes, name: bytes) -> float:
+        decoded_key = key.decode()
+        if (
+            decoded_key not in self.store
+            or self.key_types[decoded_key] != Database.ValType.SET
+        ):
+            return 0
+        value = self.store[decoded_key]
+        set_val = cast(SortedSet, value)
+        return set_val.score(name)
 
     def __init__(self, dir: str, dbfilename: str):
         # TODO: standardise key type to bytes

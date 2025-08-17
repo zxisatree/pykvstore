@@ -172,6 +172,10 @@ def parse_resp_cmd(
     elif cmd_str == b"ZCARD":
         set_key = resp_elements[1]
         return commands.ZcardCommand(raw_cmd, set_key.data)
+    elif cmd_str == b"ZSCORE":
+        set_key = resp_elements[1]
+        name = resp_elements[2]
+        return commands.ZscoreCommand(raw_cmd, set_key.data, name.data)
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])
