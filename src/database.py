@@ -202,6 +202,15 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             end += 1
         return set_val.get_slice(start, end)
 
+    def zcard(self, key: bytes) -> int:
+        decoded_key = key.decode()
+        if (
+            decoded_key not in self.store
+            or self.key_types[decoded_key] != Database.ValType.SET
+        ):
+            return 0
+        return len(self.store[decoded_key])
+
     def __init__(self, dir: str, dbfilename: str):
         # TODO: standardise key type to bytes
         self.store: ThreadsafeDict[

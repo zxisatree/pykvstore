@@ -97,6 +97,27 @@ class ZrangeCommand(Command):
         )
 
 
+class ZcardCommand(Command):
+    expected_arg_count = [1]
+
+    def __init__(self, raw_cmd: bytes, key: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZCARD"
+        self.key = key
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zcard(self.key)
+        return RespInteger(result).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZcardCommand(
+            craft_command("ZCARD", *args).encode(),
+            args[0].encode(),
+        )
+
+
 class NoOp(Command):
     expected_arg_count = [0]
 

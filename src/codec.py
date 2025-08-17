@@ -169,6 +169,9 @@ def parse_resp_cmd(
         return commands.ZrangeCommand(
             raw_cmd, set_key.data, int(zrange_start.data), int(zrange_end.data)
         )
+    elif cmd_str == b"ZCARD":
+        set_key = resp_elements[1]
+        return commands.ZcardCommand(raw_cmd, set_key.data)
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])
