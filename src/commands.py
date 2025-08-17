@@ -17,6 +17,30 @@ from logs import logger
 from utils import construct_conn_id
 
 
+class ZaddCommand(Command):
+    expected_arg_count = [3]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, score: float, name: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZADD"
+        self.key = key
+        self.score = score
+        self.name = name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        return RespInteger(int(db.zadd(self.key, self.score, self.name))).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZaddCommand(
+            craft_command("ZADD", *args).encode(),
+            args[0].encode(),
+            float(args[1]),
+            args[2].encode(),
+        )
+
+
 class NoOp(Command):
     expected_arg_count = [0]
 
@@ -412,7 +436,7 @@ class WaitCommand(Command):
                 ]
             ).encode()
         )
-        logger.info(f"finished sending to all slaves")
+        logger.info("finished sending to all slaves")
         while replica_handler.ack_count < self.replica_count and datetime.now() < end:
             pass
 

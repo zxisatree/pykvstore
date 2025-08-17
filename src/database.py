@@ -8,6 +8,7 @@ import socket
 from threading import Condition, Lock, RLock, Semaphore
 import time
 from typing import cast
+from dataclasses import dataclass
 
 import interfaces
 import constants
@@ -87,6 +88,37 @@ class ThreadsafeDefaultdict[KT, VT](defaultdict):
         return f"ThreadsafeDefaultdict{super().__repr__()}"
 
 
+class SortedSet:
+    """Naive implementation, uses a list to maintain sorted order"""
+
+    @dataclass(order=True)
+    class Item:
+        score: float
+        name: str
+
+    def __init__(self) -> None:
+        # constant time lookup of identifiers
+        self.names: set[str] = set()
+        # counterintuitive, but the list acts as the main data source
+        self.set: list[SortedSet.Item] = list()
+
+    def __len__(self):
+        return len(self.set)
+
+    def add_item(self, item: Item) -> int:
+        logger.info(f"{item=}")
+        logger.info(f"{self.names=}")
+        logger.info(f"{item.name in self.names=}")
+        if item.name in self.names:
+            return 0
+        bisect.insort(self.set, item)
+        self.names.add(item.name)
+        return 1
+
+    def add(self, name: str, score: float) -> int:
+        return self.add_item(SortedSet.Item(score, name))
+
+
 class Database(metaclass=singleton_meta.SingletonMeta):
     StrVal = tuple[str, datetime | None]
     StreamVal = list[tuple["StreamId", dict[str, str]]]
@@ -97,6 +129,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         STRING = 1
         STREAM = 2
         LIST = 3
+        SET = 4
 
         def __str__(self) -> str:
             match self.value:
@@ -106,12 +139,29 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return "stream"
                 case 3:
                     return "list"
+                case 4:
+                    return "set"
             return "none"
+
+    def zadd(self, key: bytes, score: float, name: bytes) -> int:
+        decoded_key = key.decode()
+        if decoded_key not in self.store:
+            self.store[decoded_key] = SortedSet()
+            self.key_types[decoded_key] = Database.ValType.SET
+        value = self.store[decoded_key]
+        # zadd only works for set values
+        key_type = self.key_types[decoded_key]
+        if key_type == Database.ValType.SET:
+            set_val = cast(SortedSet, value)
+            return set_val.add(name.decode(), score)
+        else:
+            logger.error("tried to Database.zadd with non SET key")
+            return 0
 
     def __init__(self, dir: str, dbfilename: str):
         # TODO: standardise key type to bytes
         self.store: ThreadsafeDict[
-            str, Database.StrVal | Database.StreamVal | Database.ListVal
+            str, Database.StrVal | Database.StreamVal | Database.ListVal | SortedSet
         ] = ThreadsafeDict()
         self.key_types: ThreadsafeDict[str, Database.ValType] = ThreadsafeDict()
         # map of keys of streams to threads waiting for new elements
@@ -147,7 +197,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def __len__(self) -> int:
         return len(self.store)
 
-    def __getitem__(self, key: str) -> str | StreamVal | None:
+    def __getitem__(self, key: str) -> str | StreamVal | SortedSet | None:
         """Only returns the value, not the expiry"""
         if key not in self.store:
             return None
@@ -165,6 +215,9 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             case Database.ValType.STREAM:
                 stream_val = cast(Database.StreamVal, value)
                 return stream_val
+            case Database.ValType.SET:
+                set_val = cast(SortedSet, value)
+                return set_val
 
     # TODO: remove? can't reliably set self.keys with this
     def __setitem__(self, key: str, value: StrVal):

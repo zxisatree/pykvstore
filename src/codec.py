@@ -140,10 +140,24 @@ def parse_resp_cmd(
             lrange_stop = int(resp_elements[3].data)
         except ValueError:
             # TODO: actually error this
-            logger.error(f"Tried to LRANGE with non int start/stop. Defaulting to 0, 0")
+            logger.error("Tried to LRANGE with non int start/stop. Defaulting to 0, 0")
             lrange_start = 0
             lrange_stop = 0
         return commands.LrangeCommand(raw_cmd, key.data, lrange_start, lrange_stop)
+    elif cmd_str == b"ZADD":
+        set_key = resp_elements[1]
+        score = resp_elements[2]
+        name = resp_elements[3]
+        try:
+            return commands.ZaddCommand(
+                raw_cmd, set_key.data, float(score.data), name.data
+            )
+        except ValueError:
+            # TODO: actually error this
+            logger.error("Tried to ZADD with non float score")
+            return commands.ZaddCommand(
+                raw_cmd, set_key.data, float(score.data), name.data
+            )
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])
