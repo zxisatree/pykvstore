@@ -162,6 +162,13 @@ def parse_resp_cmd(
         set_key = resp_elements[1]
         name = resp_elements[2]
         return commands.ZrankCommand(raw_cmd, set_key.data, name.data)
+    elif cmd_str == b"ZRANGE":
+        set_key = resp_elements[1]
+        zrange_start = resp_elements[2]
+        zrange_end = resp_elements[3]
+        return commands.ZrangeCommand(
+            raw_cmd, set_key.data, int(zrange_start.data), int(zrange_end.data)
+        )
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])

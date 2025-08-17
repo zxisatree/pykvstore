@@ -67,6 +67,36 @@ class ZrankCommand(Command):
         )
 
 
+class ZrangeCommand(Command):
+    expected_arg_count = [3]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, start: int, end: int):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZRANGE"
+        self.key = key
+        self.start = start
+        self.end = end
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zrange(self.key, self.start, self.end)
+        if len(result) == 0:
+            return constants.EMPTY_RESP_ARRAY.encode()
+        else:
+            return RespArray(
+                [RespBulkString(item.name.encode()) for item in result]
+            ).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZrangeCommand(
+            craft_command("ZRANGE", *args).encode(),
+            args[0].encode(),
+            int(args[1]),
+            int(args[2]),
+        )
+
+
 class NoOp(Command):
     expected_arg_count = [0]
 
