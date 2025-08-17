@@ -158,6 +158,10 @@ def parse_resp_cmd(
             return commands.ZaddCommand(
                 raw_cmd, set_key.data, float(score.data), name.data
             )
+    elif cmd_str == b"ZRANK":
+        set_key = resp_elements[1]
+        name = resp_elements[2]
+        return commands.ZrankCommand(raw_cmd, set_key.data, name.data)
     elif cmd_str == b"XADD":
         stream_key = resp_elements[1]
         return commands.XaddCommand(raw_cmd, stream_key.data, resp_elements[2:])

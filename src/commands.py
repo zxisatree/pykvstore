@@ -41,6 +41,32 @@ class ZaddCommand(Command):
         )
 
 
+class ZrankCommand(Command):
+    expected_arg_count = [2]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZRANK"
+        self.key = key
+        self.name = name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zrank(self.key, self.name)
+        if result == -1:
+            return constants.NULL_BULK_RESP_STRING.encode()
+        else:
+            return RespInteger(result).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZrankCommand(
+            craft_command("ZRANK", *args).encode(),
+            args[0].encode(),
+            args[1].encode(),
+        )
+
+
 class NoOp(Command):
     expected_arg_count = [0]
 

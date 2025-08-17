@@ -105,6 +105,12 @@ class SortedSet:
     def __len__(self):
         return len(self.set)
 
+    def rank(self, name: str):
+        for idx, item in enumerate(self.set):
+            if item.name == name:
+                return idx
+        return -1
+
     def add_item(self, item: Item) -> int:
         logger.info(f"{item=}")
         logger.info(f"{self.names=}")
@@ -157,6 +163,17 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         else:
             logger.error("tried to Database.zadd with non SET key")
             return 0
+
+    def zrank(self, key: bytes, name: bytes) -> int:
+        decoded_key = key.decode()
+        if (
+            decoded_key not in self.store
+            or self.key_types[decoded_key] != Database.ValType.SET
+        ):
+            return -1
+        value = self.store[decoded_key]
+        set_val = cast(SortedSet, value)
+        return set_val.rank(name.decode())
 
     def __init__(self, dir: str, dbfilename: str):
         # TODO: standardise key type to bytes
