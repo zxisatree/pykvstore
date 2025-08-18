@@ -98,7 +98,7 @@ class SetCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         replica_handler.propogate(self._raw_cmd)
-        db[self.key] = (self.value.decode(), self.expiry)
+        db.set_string_value(self.key, (self.value.decode(), self.expiry))
         return transform_to_execute_output(constants.OK_SIMPLE_RESP_STRING)
 
     @staticmethod
@@ -132,13 +132,13 @@ class IncrCommand(Command):
         self._keyword = b"INCR"
 
     def execute(self, db, replica_handler, conn):
-        old_value = db[self.key]
-        # TODO: use key_types
         value_type = db.get_type(self.key)
         if value_type not in [db.ValType.NONE, db.ValType.STRING]:
             raise exceptions.UnsupportedOperationError(
                 "INCR command is unsupported for stream values"
             )
+
+        old_value = db[self.key]
         value = cast(str, old_value)
         if old_value:
             try:
@@ -152,7 +152,7 @@ class IncrCommand(Command):
             new_value = str(1)
             expiry = None
 
-        db[self.key] = (new_value, expiry)
+        db.set_string_value(self.key, (new_value, expiry))
         return RespInteger(int(new_value)).encode_to_list()
 
     @classmethod

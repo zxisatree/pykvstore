@@ -1,11 +1,10 @@
 import bisect
-from collections import defaultdict
 from datetime import datetime
 from enum import Enum
 import functools
 import os
 import socket
-from threading import Condition, Lock, RLock, Semaphore
+from threading import Condition, Lock, Semaphore
 import time
 from typing import cast
 from dataclasses import dataclass
@@ -16,76 +15,12 @@ from data_types import RespArray, RespBulkString, RespDataType
 from logs import logger
 import rdb
 import singleton_meta
-from utils import ConnId, transform_to_execute_output
-
-
-class ThreadsafeDict[KT, VT](dict):
-    """Coarse locking wrapper over a dict"""
-
-    def __init__(self, *args, **kwargs):
-        self.lock = Lock()
-        super().__init__(*args, **kwargs)
-
-    def __getitem__(self, key: KT) -> VT:
-        with self.lock:
-            return super().__getitem__(key)
-
-    def __setitem__(self, key: KT, value: VT):
-        with self.lock:
-            return super().__setitem__(key, value)
-
-    def __contains__(self, key: KT) -> bool:
-        with self.lock:
-            return super().__contains__(key)
-
-    def __len__(self) -> int:
-        with self.lock:
-            return super().__len__()
-
-    def __delitem__(self, key: KT):
-        with self.lock:
-            return super().__delitem__(key)
-
-    def __str__(self) -> str:
-        return super().__str__()
-
-    def __repr__(self) -> str:
-        return f"ThreadsafeDict{super().__repr__()}"
-
-
-class ThreadsafeDefaultdict[KT, VT](defaultdict):
-    """Coarse locking wrapper over a defaultdict"""
-
-    def __init__(self, *args, **kwargs):
-        # defaultdict might call __setitem__ in __getitem__
-        self.lock = RLock()
-        super().__init__(*args, **kwargs)
-
-    def __getitem__(self, key: KT) -> VT:
-        with self.lock:
-            return super().__getitem__(key)
-
-    def __setitem__(self, key: KT, value: VT):
-        with self.lock:
-            return super().__setitem__(key, value)
-
-    def __contains__(self, key: KT) -> bool:
-        with self.lock:
-            return super().__contains__(key)
-
-    def __len__(self) -> int:
-        with self.lock:
-            return super().__len__()
-
-    def __delitem__(self, key: KT):
-        with self.lock:
-            return super().__delitem__(key)
-
-    def __str__(self) -> str:
-        return super().__str__()
-
-    def __repr__(self) -> str:
-        return f"ThreadsafeDefaultdict{super().__repr__()}"
+from utils import (
+    ConnId,
+    ThreadsafeDefaultdict,
+    ThreadsafeDict,
+    transform_to_execute_output,
+)
 
 
 class SortedSet:
@@ -167,58 +102,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     return "set"
             return "none"
 
-    def zadd(self, key: bytes, score: float, name: bytes) -> int:
-        if key not in self.store:
-            self.store[key] = SortedSet()
-            self.key_types[key] = Database.ValType.SET
-        value = self.store[key]
-        # zadd only works for set values
-        key_type = self.key_types[key]
-        if key_type == Database.ValType.SET:
-            set_val = cast(SortedSet, value)
-            return set_val.add(name, score)
-        else:
-            logger.error("tried to Database.zadd with non SET key")
-            return 0
-
-    def zrank(self, key: bytes, name: bytes) -> int:
-        if key not in self.store or self.key_types[key] != Database.ValType.SET:
-            return -1
-        value = self.store[key]
-        set_val = cast(SortedSet, value)
-        return set_val.rank(name)
-
-    def zrange(self, key: bytes, start: int, end: int) -> list[SortedSet.Item]:
-        """[start:end+1], inclusive of end"""
-        if key not in self.store or self.key_types[key] != Database.ValType.SET:
-            return []
-        value = self.store[key]
-        set_val = cast(SortedSet, value)
-        if end == -1:
-            end = len(set_val)
-        else:
-            end += 1
-        return set_val.get_slice(start, end)
-
-    def zcard(self, key: bytes) -> int:
-        if key not in self.store or self.key_types[key] != Database.ValType.SET:
-            return 0
-        return len(self.store[key])
-
-    def zscore(self, key: bytes, name: bytes) -> float:
-        if key not in self.store or self.key_types[key] != Database.ValType.SET:
-            return 0
-        value = self.store[key]
-        set_val = cast(SortedSet, value)
-        return set_val.score(name)
-
-    def zrem(self, key: bytes, name: bytes) -> int:
-        if key not in self.store or self.key_types[key] != Database.ValType.SET:
-            return 0
-        value = self.store[key]
-        set_val = cast(SortedSet, value)
-        return set_val.remove(name)
-
     def __init__(self, dir: str, dbfilename: str):
         self.store: ThreadsafeDict[
             bytes, Database.StrVal | Database.StreamVal | Database.ListVal | SortedSet
@@ -279,11 +162,6 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 set_val = cast(SortedSet, value)
                 return set_val
 
-    # TODO: remove? can't reliably set self.keys with this
-    def __setitem__(self, key: bytes, value: StrVal):
-        self.key_types[key] = Database.ValType.STRING
-        self.store[key] = value
-
     def __delitem__(self, key: bytes):
         del self.store[key]
 
@@ -295,6 +173,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
     def __repr__(self) -> str:
         return f"Database({repr(self.store)})"
+
+    def set_string_value(self, key: bytes, value: StrVal):
+        self.key_types[key] = Database.ValType.STRING
+        self.store[key] = value
 
     def get_type(self, key: bytes) -> ValType:
         if key not in self.store:
@@ -584,6 +466,58 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 )
             )
         return RespArray(res).encode_to_list()
+
+    def zadd(self, key: bytes, score: float, name: bytes) -> int:
+        if key not in self.store:
+            self.store[key] = SortedSet()
+            self.key_types[key] = Database.ValType.SET
+        value = self.store[key]
+        # zadd only works for set values
+        key_type = self.key_types[key]
+        if key_type == Database.ValType.SET:
+            set_val = cast(SortedSet, value)
+            return set_val.add(name, score)
+        else:
+            logger.error("tried to Database.zadd with non SET key")
+            return 0
+
+    def zrank(self, key: bytes, name: bytes) -> int:
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
+            return -1
+        value = self.store[key]
+        set_val = cast(SortedSet, value)
+        return set_val.rank(name)
+
+    def zrange(self, key: bytes, start: int, end: int) -> list[SortedSet.Item]:
+        """[start:end+1], inclusive of end"""
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
+            return []
+        value = self.store[key]
+        set_val = cast(SortedSet, value)
+        if end == -1:
+            end = len(set_val)
+        else:
+            end += 1
+        return set_val.get_slice(start, end)
+
+    def zcard(self, key: bytes) -> int:
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
+            return 0
+        return len(self.store[key])
+
+    def zscore(self, key: bytes, name: bytes) -> float:
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
+            return 0
+        value = self.store[key]
+        set_val = cast(SortedSet, value)
+        return set_val.score(name)
+
+    def zrem(self, key: bytes, name: bytes) -> int:
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
+            return 0
+        value = self.store[key]
+        set_val = cast(SortedSet, value)
+        return set_val.remove(name)
 
 
 @functools.total_ordering
