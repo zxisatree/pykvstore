@@ -31,7 +31,7 @@ class Command(ABC):
         conn: socket.socket,
     ) -> bytes | list[bytes]: ...
 
-    @classmethod
-    @abstractmethod
-    # might raise RequestCraftError
-    def craft_request(cls, *args: str) -> Self: ...
+    # @classmethod
+    # @abstractmethod
+    # # might raise RequestCraftError
+    # def craft_request(cls, *args: str) -> Self: ...

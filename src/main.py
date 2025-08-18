@@ -113,7 +113,9 @@ def execute_cmd(
     replica_handler: replicas.ReplicaHandler,
     conn: socket.socket,
 ):
-    conn_id = construct_conn_id(conn)  # TODO: check if this is really static
+    conn_id = construct_conn_id(conn)
+    in_xact = db.xact_exists(conn_id)
+    in_subscribed_mode = db.in_subscribed_mode(conn_id)
     if (
         db.xact_exists(conn_id)
         and not isinstance(cmd, commands.ExecCommand)
@@ -130,11 +132,11 @@ def execute_cmd(
         executed = data_types.RespSimpleError(
             f"ERR Can't execute '{cmd.keyword.decode().lower()}': only SUBSCRIBE / UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
         ).encode()
-    elif db.in_subscribed_mode(conn_id) and isinstance(cmd, commands.PingCommand):
-        # TODO: should actually be in Commands interface
-        cmd.in_subscribed_mode = True
-        logger.info(f"cmd.in_subscribed_mode = True")
-        executed = cmd.execute(db, replica_handler, conn)
+    # elif db.in_subscribed_mode(conn_id) and isinstance(cmd, commands.PingCommand):
+    #     # TODO: should actually be in Commands interface
+    #     cmd.in_subscribed_mode = True
+    #     logger.info("cmd.in_subscribed_mode")
+    #     executed = cmd.execute(db, replica_handler, conn)
     else:
         executed = cmd.execute(db, replica_handler, conn)
 
@@ -156,7 +158,7 @@ def validate_parse_args(
         replica_host, replica_port = args.replicaof.split(" ")
         try:
             replicaof_int = int(replica_port)
-        except:
+        except ValueError:
             return None, "replicaof port is not an integer"
         return (
             args.port,

@@ -139,7 +139,6 @@ def parse_resp_cmd(
             lrange_start = int(resp_elements[2].data)
             lrange_stop = int(resp_elements[3].data)
         except ValueError:
-            # TODO: actually error this
             logger.error("Tried to LRANGE with non int start/stop. Defaulting to 0, 0")
             lrange_start = 0
             lrange_stop = 0
@@ -153,7 +152,6 @@ def parse_resp_cmd(
                 raw_cmd, set_key.data, float(score.data), name.data
             )
         except ValueError:
-            # TODO: actually error this
             logger.error("Tried to ZADD with non float score")
             return commands.ZaddCommand(
                 raw_cmd, set_key.data, float(score.data), name.data

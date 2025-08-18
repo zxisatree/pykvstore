@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Iterable
+from typing import Iterable, cast
 
 import constants
 from data_types import (
@@ -15,154 +15,6 @@ import exceptions
 from interfaces import Command
 from logs import logger
 from utils import construct_conn_id
-
-
-class ZaddCommand(Command):
-    expected_arg_count = [3]
-
-    def __init__(self, raw_cmd: bytes, key: bytes, score: float, name: bytes):
-        self._raw_cmd = raw_cmd
-        self._keyword = b"ZADD"
-        self.key = key
-        self.score = score
-        self.name = name
-
-    def execute(self, db, replica_handler, conn) -> bytes:
-        return RespInteger(int(db.zadd(self.key, self.score, self.name))).encode()
-
-    @classmethod
-    def craft_request(cls, *args: str):
-        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
-        return ZaddCommand(
-            craft_command("ZADD", *args).encode(),
-            args[0].encode(),
-            float(args[1]),
-            args[2].encode(),
-        )
-
-
-class ZrankCommand(Command):
-    expected_arg_count = [2]
-
-    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
-        self._raw_cmd = raw_cmd
-        self._keyword = b"ZRANK"
-        self.key = key
-        self.name = name
-
-    def execute(self, db, replica_handler, conn) -> bytes:
-        result = db.zrank(self.key, self.name)
-        if result == -1:
-            return constants.NULL_BULK_RESP_STRING.encode()
-        else:
-            return RespInteger(result).encode()
-
-    @classmethod
-    def craft_request(cls, *args: str):
-        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
-        return ZrankCommand(
-            craft_command("ZRANK", *args).encode(),
-            args[0].encode(),
-            args[1].encode(),
-        )
-
-
-class ZrangeCommand(Command):
-    expected_arg_count = [3]
-
-    def __init__(self, raw_cmd: bytes, key: bytes, start: int, end: int):
-        self._raw_cmd = raw_cmd
-        self._keyword = b"ZRANGE"
-        self.key = key
-        self.start = start
-        self.end = end
-
-    def execute(self, db, replica_handler, conn) -> bytes:
-        result = db.zrange(self.key, self.start, self.end)
-        if len(result) == 0:
-            return constants.EMPTY_RESP_ARRAY.encode()
-        else:
-            return RespArray([RespBulkString(item.name) for item in result]).encode()
-
-    @classmethod
-    def craft_request(cls, *args: str):
-        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
-        return ZrangeCommand(
-            craft_command("ZRANGE", *args).encode(),
-            args[0].encode(),
-            int(args[1]),
-            int(args[2]),
-        )
-
-
-class ZcardCommand(Command):
-    expected_arg_count = [1]
-
-    def __init__(self, raw_cmd: bytes, key: bytes):
-        self._raw_cmd = raw_cmd
-        self._keyword = b"ZCARD"
-        self.key = key
-
-    def execute(self, db, replica_handler, conn) -> bytes:
-        result = db.zcard(self.key)
-        return RespInteger(result).encode()
-
-    @classmethod
-    def craft_request(cls, *args: str):
-        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
-        return ZcardCommand(
-            craft_command("ZCARD", *args).encode(),
-            args[0].encode(),
-        )
-
-
-class ZscoreCommand(Command):
-    expected_arg_count = [2]
-
-    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
-        self._raw_cmd = raw_cmd
-        self._keyword = b"ZSCORE"
-        self.key = key
-        self.name = name
-
-    def execute(self, db, replica_handler, conn) -> bytes:
-        result = db.zscore(self.key, self.name)
-        if result == -1:
-            return constants.NULL_BULK_RESP_STRING.encode()
-        else:
-            return RespBulkString(str(result).encode()).encode()
-
-    @classmethod
-    def craft_request(cls, *args: str):
-        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
-        return ZscoreCommand(
-            craft_command("ZSCORE", *args).encode(),
-            args[0].encode(),
-            args[1].encode(),
-        )
-
-
-class ZremCommand(Command):
-    expected_arg_count = [2]
-
-    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
-        self._raw_cmd = raw_cmd
-        self._keyword = b"ZREM"
-        self.key = key
-        self.name = name
-
-    def execute(self, db, replica_handler, conn) -> bytes:
-        result = db.zrem(self.key, self.name)
-        return RespInteger(result).encode()
-
-    @classmethod
-    def craft_request(cls, *args: str):
-        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
-        return ZremCommand(
-            craft_command("ZREM", *args).encode(),
-            args[0].encode(),
-            args[1].encode(),
-        )
 
 
 class NoOp(Command):
@@ -187,11 +39,10 @@ class PingCommand(Command):
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"PING"
-        self.in_subscribed_mode = False
 
     def execute(self, db, replica_handler, conn) -> bytes:
-        logger.info(f"{self.in_subscribed_mode=}")
-        if self.in_subscribed_mode:
+        conn_id = construct_conn_id(conn)
+        if db.in_subscribed_mode(conn_id):
             return RespArray([RespSimpleString(b"pong"), RespBulkString(b"")]).encode()
         else:
             return RespSimpleString(b"PONG").encode()
@@ -281,14 +132,15 @@ class IncrCommand(Command):
         decoded_key = self.key.decode()
         old_value = db[decoded_key]
         # TODO: use key_types
-        # assume that old_value is always a str
-        if isinstance(old_value, list):
+        value_type = db.get_type(decoded_key)
+        if value_type not in [db.ValType.NONE, db.ValType.STRING]:
             raise exceptions.UnsupportedOperationError(
                 "INCR command is unsupported for stream values"
             )
+        value = cast(str, old_value)
         if old_value:
             try:
-                new_value = str(int(old_value) + 1)
+                new_value = str(int(value) + 1)
             except ValueError:
                 return RespSimpleError(
                     b"ERR value is not an integer or out of range"
@@ -592,7 +444,9 @@ class TypeCommand(Command):
 
     def execute(self, db, replica_handler, conn) -> bytes:
         if self.key.decode() in db:
-            return RespSimpleString(db.get_type(self.key.decode()).encode()).encode()
+            return RespSimpleString(
+                str(db.get_type(self.key.decode())).encode()
+            ).encode()
         return RespSimpleString(b"none").encode()
 
     @classmethod
@@ -1024,6 +878,154 @@ class PublishCommand(Command):
         verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
         return PublishCommand(
             craft_command("PUBLISH", *args).encode(), args[0].encode(), args[1].encode()
+        )
+
+
+class ZaddCommand(Command):
+    expected_arg_count = [3]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, score: float, name: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZADD"
+        self.key = key
+        self.score = score
+        self.name = name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        return RespInteger(int(db.zadd(self.key, self.score, self.name))).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZaddCommand(
+            craft_command("ZADD", *args).encode(),
+            args[0].encode(),
+            float(args[1]),
+            args[2].encode(),
+        )
+
+
+class ZrankCommand(Command):
+    expected_arg_count = [2]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZRANK"
+        self.key = key
+        self.name = name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zrank(self.key, self.name)
+        if result == -1:
+            return constants.NULL_BULK_RESP_STRING.encode()
+        else:
+            return RespInteger(result).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZrankCommand(
+            craft_command("ZRANK", *args).encode(),
+            args[0].encode(),
+            args[1].encode(),
+        )
+
+
+class ZrangeCommand(Command):
+    expected_arg_count = [3]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, start: int, end: int):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZRANGE"
+        self.key = key
+        self.start = start
+        self.end = end
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zrange(self.key, self.start, self.end)
+        if len(result) == 0:
+            return constants.EMPTY_RESP_ARRAY.encode()
+        else:
+            return RespArray([RespBulkString(item.name) for item in result]).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZrangeCommand(
+            craft_command("ZRANGE", *args).encode(),
+            args[0].encode(),
+            int(args[1]),
+            int(args[2]),
+        )
+
+
+class ZcardCommand(Command):
+    expected_arg_count = [1]
+
+    def __init__(self, raw_cmd: bytes, key: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZCARD"
+        self.key = key
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zcard(self.key)
+        return RespInteger(result).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZcardCommand(
+            craft_command("ZCARD", *args).encode(),
+            args[0].encode(),
+        )
+
+
+class ZscoreCommand(Command):
+    expected_arg_count = [2]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZSCORE"
+        self.key = key
+        self.name = name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zscore(self.key, self.name)
+        if result == -1:
+            return constants.NULL_BULK_RESP_STRING.encode()
+        else:
+            return RespBulkString(str(result).encode()).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZscoreCommand(
+            craft_command("ZSCORE", *args).encode(),
+            args[0].encode(),
+            args[1].encode(),
+        )
+
+
+class ZremCommand(Command):
+    expected_arg_count = [2]
+
+    def __init__(self, raw_cmd: bytes, key: bytes, name: bytes):
+        self._raw_cmd = raw_cmd
+        self._keyword = b"ZREM"
+        self.key = key
+        self.name = name
+
+    def execute(self, db, replica_handler, conn) -> bytes:
+        result = db.zrem(self.key, self.name)
+        return RespInteger(result).encode()
+
+    @classmethod
+    def craft_request(cls, *args: str):
+        verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
+        return ZremCommand(
+            craft_command("ZREM", *args).encode(),
+            args[0].encode(),
+            args[1].encode(),
         )
 
 

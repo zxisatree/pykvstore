@@ -318,10 +318,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def __repr__(self) -> str:
         return f"Database({repr(self.store)})"
 
-    def get_type(self, key: str) -> str:
+    def get_type(self, key: str) -> ValType:
         if key not in self.store:
-            return "none"
-        return str(self.key_types[key])
+            return Database.ValType.NONE
+        return self.key_types[key]
 
     def get_expiry(self, key: str) -> datetime | None:
         if key not in self.store:
