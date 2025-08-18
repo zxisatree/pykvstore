@@ -35,6 +35,7 @@ class NoOp(Command):
 
 class PingCommand(Command):
     expected_arg_count = [0]
+    allowed_in_subscribed_mode = True
 
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
@@ -481,6 +482,7 @@ class MultiCommand(Command):
 
 class ExecCommand(Command):
     expected_arg_count = [0]
+    allowed_in_xact = True
 
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
@@ -509,6 +511,7 @@ class ExecCommand(Command):
 
 class DiscardCommand(Command):
     expected_arg_count = [0]
+    allowed_in_xact = True
 
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
@@ -804,6 +807,7 @@ class XreadCommand(Command):
 
 class SubscribeCommand(Command):
     expected_arg_count = [1]
+    allowed_in_subscribed_mode = True
 
     def __init__(self, raw_cmd: bytes, channel_name: bytes):
         self._raw_cmd = raw_cmd
@@ -831,6 +835,7 @@ class SubscribeCommand(Command):
 
 class UnsubscribeCommand(Command):
     expected_arg_count = [1]
+    allowed_in_subscribed_mode = True
 
     def __init__(self, raw_cmd: bytes, channel_name: bytes):
         self._raw_cmd = raw_cmd

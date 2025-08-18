@@ -117,19 +117,11 @@ def execute_cmd(
     conn_id = construct_conn_id(conn)
     in_xact = db.xact_exists(conn_id)
     in_subscribed_mode = db.in_subscribed_mode(conn_id)
-    if (
-        db.xact_exists(conn_id)
-        and not isinstance(cmd, commands.ExecCommand)
-        and not isinstance(cmd, commands.DiscardCommand)
-    ):
+
+    if in_xact and not cmd.allowed_in_xact:
         db.queue_xact_cmd(conn_id, cmd)
         executed = transform_to_execute_output(constants.XACT_QUEUED_RESPONSE)
-    elif (
-        db.in_subscribed_mode(conn_id)
-        and not isinstance(cmd, commands.SubscribeCommand)
-        and not isinstance(cmd, commands.UnsubscribeCommand)
-        and not isinstance(cmd, commands.PingCommand)
-    ):
+    elif in_subscribed_mode and not cmd.allowed_in_subscribed_mode:
         executed = data_types.RespSimpleError(
             f"ERR Can't execute '{cmd.keyword.decode().lower()}': only SUBSCRIBE / UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
         ).encode_list()
@@ -171,7 +163,7 @@ def setup_argparser() -> argparse.ArgumentParser:
     argparser.add_argument(
         "--replicaof",
         type=str,
-        # nargs=2, # recently changed to a single string e.g. "localhost 6380"
+        # nargs=2, # tests recently changed to a single string e.g. "localhost 6380"
         default=None,
         help="Master IP and port to replicate from (default: None)",
     )

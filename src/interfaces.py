@@ -10,6 +10,9 @@ if TYPE_CHECKING:
 
 
 class Command(ABC):
+    allowed_in_subscribed_mode = False
+    allowed_in_xact = False
+
     def __init__(self):
         self._raw_cmd = b""
         self._keyword = b""
