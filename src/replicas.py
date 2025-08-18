@@ -47,7 +47,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         logger.info(f"Replica sent ping, got {data=}")
         # check if we get PONG
         if data != b"+PONG\r\n":
-            logger.info("Failed to connect to master")
+            logger.error("Failed to connect to master, did not get PONG from PING")
             return
 
         self.master_conn.sendall(
@@ -75,7 +75,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.master_conn.sendall(
             commands.craft_command("PSYNC", self.master_replid, str(-1)).encode()
         )
-        logger.info(f"Replica sent PSYNC")
+        logger.info("Replica sent PSYNC")
         handshake_step = 0
 
         while True:
@@ -111,11 +111,10 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
 
     def respond_to_master(self, cmd: "commands.Command", db: database.Database):
         executed = cmd.execute(db, self, self.master_conn)
-        if isinstance(cmd, commands.ReplConfGetAckCommand) and isinstance(
-            executed, bytes
-        ):
-            # impossible to get list here for executed after checking cmd
-            self.master_conn.sendall(executed)
+        if isinstance(cmd, commands.ReplConfGetAckCommand):
+            for resp in executed:
+                logger.info(f"responding to master: {resp}")
+                self.master_conn.sendall(resp)
 
     def add_slave(self, slave: socket.socket):
         self.slaves.append(slave)
@@ -125,7 +124,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         for slave in self.slaves:
             slave.sendall(raw_cmd)
 
-    def get_info(self) -> bytes:
+    def get_info(self) -> list[bytes]:
         # encode each kv as a RespBulkString
         info = {
             "role": self.role,
@@ -142,4 +141,4 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                     info.items(),
                 )
             )
-        ).encode()
+        ).encode_list()

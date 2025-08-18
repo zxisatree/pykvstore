@@ -29,7 +29,7 @@ class Command(ABC):
         db: database.Database,
         replica_handler: replicas.ReplicaHandler,
         conn: socket.socket,
-    ) -> bytes | list[bytes]: ...
+    ) -> list[bytes]: ...
 
     # @classmethod
     # @abstractmethod

@@ -16,7 +16,7 @@ import constants
 import database
 import data_types
 from logs import logger
-from utils import construct_conn_id
+from utils import construct_conn_id, transform_to_execute_output
 import replicas
 
 
@@ -101,6 +101,7 @@ def handle_conn(
                 break
             logger.info(f"raw {data=}")
             cmds = codec.parse_cmd(data)
+            logger.info(f"{cmds=}")
             for cmd in cmds:
                 execute_cmd(cmd, db, replica_handler, conn)
 
@@ -122,7 +123,7 @@ def execute_cmd(
         and not isinstance(cmd, commands.DiscardCommand)
     ):
         db.queue_xact_cmd(conn_id, cmd)
-        executed = constants.XACT_QUEUED_RESPONSE.encode()
+        executed = transform_to_execute_output(constants.XACT_QUEUED_RESPONSE)
     elif (
         db.in_subscribed_mode(conn_id)
         and not isinstance(cmd, commands.SubscribeCommand)
@@ -131,22 +132,13 @@ def execute_cmd(
     ):
         executed = data_types.RespSimpleError(
             f"ERR Can't execute '{cmd.keyword.decode().lower()}': only SUBSCRIBE / UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
-        ).encode()
-    # elif db.in_subscribed_mode(conn_id) and isinstance(cmd, commands.PingCommand):
-    #     # TODO: should actually be in Commands interface
-    #     cmd.in_subscribed_mode = True
-    #     logger.info("cmd.in_subscribed_mode")
-    #     executed = cmd.execute(db, replica_handler, conn)
+        ).encode_list()
     else:
         executed = cmd.execute(db, replica_handler, conn)
 
-    if isinstance(executed, list):
-        for resp in executed:
-            logger.info(f"responding {resp}")
-            conn.sendall(resp)
-    else:
-        logger.info(f"responding {executed}")
-        conn.sendall(executed)
+    for resp in executed:
+        logger.info(f"responding {resp}")
+        conn.sendall(resp)
 
 
 def validate_parse_args(

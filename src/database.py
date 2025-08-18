@@ -16,7 +16,7 @@ from data_types import RespArray, RespBulkString, RespDataType
 from logs import logger
 import rdb
 import singleton_meta
-from utils import ConnId
+from utils import ConnId, transform_to_execute_output
 
 
 class ThreadsafeDict[KT, VT](dict):
@@ -488,11 +488,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 sws.release()
         return str(processed_id)
 
-    def xrange(self, key: str, start: str, end: str) -> bytes:
+    def xrange(self, key: str, start: str, end: str) -> list[bytes]:
         value = self.store[key]
         key_type = self.key_types[key]
         if key_type != Database.ValType.STREAM:
-            return constants.XOP_ON_NON_STREAM_ERROR.encode()
+            return transform_to_execute_output(constants.XOP_ON_NON_STREAM_ERROR)
         value = cast(Database.StreamVal, value)
 
         # support - and + queries
@@ -517,7 +517,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
         lo = bisect.bisect_right(value, start_stream_id, key=lambda x: x[0])
         if lo >= len(value):
-            return constants.EMPTY_RESP_ARRAY.encode()
+            return transform_to_execute_output(constants.EMPTY_RESP_ARRAY)
         hi = bisect.bisect_right(value, end_stream_id, key=lambda x: x[0])
         if hi >= len(value):
             hi = len(value)
@@ -537,11 +537,11 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     ]
                 )
             )
-        return RespArray(res).encode()
+        return RespArray(res).encode_list()
 
     def xread(
         self, stream_keys: list[str], ids: list[str], timeout: int | None
-    ) -> bytes:
+    ) -> list[bytes]:
         if timeout is not None:
             original_lens = [len(self.store[stream_key]) for stream_key in stream_keys]
             logger.info(f"{original_lens=}")
@@ -570,7 +570,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             value = self.store[stream_key]
             key_type = self.key_types[stream_key]
             if key_type != Database.ValType.STREAM:
-                return constants.XOP_ON_NON_STREAM_ERROR.encode()
+                return transform_to_execute_output(constants.XOP_ON_NON_STREAM_ERROR)
             value = cast(Database.StreamVal, value)
             if id == "$":
                 logger.info(f"{original_lens[i]=}")
@@ -579,7 +579,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
 
             lo = bisect.bisect_right(value, stream_id, key=lambda x: x[0])
             if lo >= len(value):
-                return constants.NULL_BULK_RESP_STRING.encode()
+                return transform_to_execute_output(constants.NULL_BULK_RESP_STRING)
 
             inter: list[RespDataType] = []
             for i in range(lo, len(value)):
@@ -603,7 +603,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     ]
                 )
             )
-        return RespArray(res).encode()
+        return RespArray(res).encode_list()
 
 
 @functools.total_ordering
