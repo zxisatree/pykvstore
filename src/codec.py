@@ -201,7 +201,7 @@ def parse_resp_cmd(
             key_id_start_idx = 4
         remaining_len = len(resp_data) - key_id_start_idx
         keys = [
-            k.data.decode()
+            k.data
             for k in resp_elements[
                 key_id_start_idx : key_id_start_idx + remaining_len // 2
             ]

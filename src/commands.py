@@ -98,7 +98,7 @@ class SetCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         replica_handler.propogate(self._raw_cmd)
-        db[self.key.decode()] = (self.value.decode(), self.expiry)
+        db[self.key] = (self.value.decode(), self.expiry)
         return transform_to_execute_output(constants.OK_SIMPLE_RESP_STRING)
 
     @staticmethod
@@ -132,10 +132,9 @@ class IncrCommand(Command):
         self._keyword = b"INCR"
 
     def execute(self, db, replica_handler, conn):
-        decoded_key = self.key.decode()
-        old_value = db[decoded_key]
+        old_value = db[self.key]
         # TODO: use key_types
-        value_type = db.get_type(decoded_key)
+        value_type = db.get_type(self.key)
         if value_type not in [db.ValType.NONE, db.ValType.STRING]:
             raise exceptions.UnsupportedOperationError(
                 "INCR command is unsupported for stream values"
@@ -148,12 +147,12 @@ class IncrCommand(Command):
                 return RespSimpleError(
                     b"ERR value is not an integer or out of range"
                 ).encode_to_list()
-            expiry = db.get_expiry(decoded_key)
+            expiry = db.get_expiry(self.key)
         else:
             new_value = str(1)
             expiry = None
 
-        db[decoded_key] = (new_value, expiry)
+        db[self.key] = (new_value, expiry)
         return RespInteger(int(new_value)).encode_to_list()
 
     @classmethod
@@ -171,8 +170,8 @@ class GetCommand(Command):
         self._keyword = b"GET"
 
     def execute(self, db, replica_handler, conn):
-        if self.key.decode() in db:
-            value = db[self.key.decode()]
+        if self.key in db:
+            value = db[self.key]
             if isinstance(value, str):
                 return RespBulkString(value.encode()).encode_to_list()
             elif isinstance(value, list):
@@ -382,7 +381,7 @@ class KeysCommand(Command):
         return RespArray(
             list(
                 map(
-                    lambda x: RespBulkString(x.encode()),
+                    RespBulkString,
                     db.rdb.key_values.keys(),
                 )
             )
@@ -447,9 +446,9 @@ class TypeCommand(Command):
         self._keyword = b"TYPE"
 
     def execute(self, db, replica_handler, conn):
-        if self.key.decode() in db:
+        if self.key in db:
             return RespSimpleString(
-                str(db.get_type(self.key.decode())).encode()
+                str(db.get_type(self.key)).encode()
             ).encode_to_list()
         return RespSimpleString(b"none").encode_to_list()
 
@@ -545,7 +544,7 @@ class RpushCommand(Command):
         self._keyword = b"RPUSH"
 
     def execute(self, db, replica_handler, conn):
-        length = db.rpush(self.key.decode(), self.values)
+        length = db.rpush(self.key, self.values)
         return RespInteger(length).encode_to_list()
 
     @classmethod
@@ -573,7 +572,7 @@ class LpushCommand(Command):
         self._keyword = b"LPUSH"
 
     def execute(self, db, replica_handler, conn):
-        length = db.lpush(self.key.decode(), self.values[::-1])
+        length = db.lpush(self.key, self.values[::-1])
         return RespInteger(length).encode_to_list()
 
     @classmethod
@@ -597,10 +596,10 @@ class LpopCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         if self.count == 1:
-            value = db.lpop(self.key.decode())
+            value = db.lpop(self.key)
             return RespBulkString(value).encode_to_list()
         else:
-            values = db.lpop_multiple(self.key.decode(), self.count)
+            values = db.lpop_multiple(self.key, self.count)
             return RespArray(
                 [RespBulkString(value) for value in values]
             ).encode_to_list()
@@ -623,9 +622,7 @@ class BlpopCommand(Command):
         self._keyword = b"BLPOP"
 
     def execute(self, db, replica_handler, conn):
-        value = db.blpop_timeout(
-            self.key.decode(), None if self.timeout == 0 else self.timeout
-        )
+        value = db.blpop_timeout(self.key, None if self.timeout == 0 else self.timeout)
         if value:
             return RespArray(
                 [RespBulkString(self.key), RespBulkString(value)]
@@ -657,10 +654,10 @@ class LlenCommand(Command):
         self._keyword = b"LLEN"
 
     def execute(self, db, replica_handler, conn):
-        if not db.key_exists(self.key.decode()):
+        if not db.key_exists(self.key):
             length = 0
         else:
-            length = len(db.get_list(self.key.decode()))
+            length = len(db.get_list(self.key))
         return RespInteger(length).encode_to_list()
 
     @classmethod
@@ -677,7 +674,7 @@ class LrangeCommand(Command):
 
     def __init__(self, raw_cmd: bytes, key: bytes, start: int, stop: int):
         self._raw_cmd = raw_cmd
-        self.key = key.decode()
+        self.key = key
         self.start = start
         self.stop = stop
         self._keyword = b"LRANGE"
@@ -723,7 +720,7 @@ class XaddCommand(Command):
     ):
         raw_stream_entry_id = self.data[0]
         stream_entry_id = raw_stream_entry_id.data
-        err = db.validate_stream_id(self.stream_key.decode(), stream_entry_id.decode())
+        err = db.validate_stream_id(self.stream_key, stream_entry_id.decode())
         if err is not None:
             return RespSimpleError(err).encode_to_list()
 
@@ -734,7 +731,7 @@ class XaddCommand(Command):
             kv_dict[stream_key.data.decode()] = stream_value.data.decode()
         logger.info(f"{stream_entry_id=}, {kv_dict=}")
         processed_stream_id = db.xadd(
-            self.stream_key.decode(), stream_entry_id.decode(), kv_dict
+            self.stream_key, stream_entry_id.decode(), kv_dict
         )
         return RespBulkString(processed_stream_id.encode()).encode_to_list()
 
@@ -763,7 +760,7 @@ class XrangeCommand(Command):
         self._keyword = b"XRANGE"
 
     def execute(self, db, replica_handler, conn):
-        return db.xrange(self.key.decode(), self.start, self.end)
+        return db.xrange(self.key, self.start, self.end)
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -774,10 +771,12 @@ class XrangeCommand(Command):
 
 
 class XreadCommand(Command):
+    expected_arg_count = [2]
+
     def __init__(
         self,
         raw_cmd: bytes,
-        stream_keys: list[str],
+        stream_keys: list[bytes],
         ids: list[str],
         timeout: int | None = None,
     ):
@@ -796,14 +795,16 @@ class XreadCommand(Command):
             verify_arg_count(cls.__name__, [4], len(args))
             return XreadCommand(
                 craft_command("XREAD", *args).encode(),
-                list(args[2:]),
+                list(map(lambda x: x.encode(), args[2:])),
                 list(args[1:2]),
                 int(args[3]),
             )
         else:
-            verify_arg_count(cls.__name__, [2], len(args))
+            verify_arg_count(cls.__name__, cls.expected_arg_count, len(args))
             return XreadCommand(
-                craft_command("XREAD", *args).encode(), list(args[1:]), list(args[0])
+                craft_command("XREAD", *args).encode(),
+                list(map(lambda x: x.encode(), args[1:])),
+                list(args[0]),
             )
 
 
@@ -818,7 +819,7 @@ class SubscribeCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         conn_id = construct_conn_id(conn)
-        channel_count = db.subscribe(self.channel_name.decode(), conn, conn_id)
+        channel_count = db.subscribe(self.channel_name, conn, conn_id)
         return RespArray(
             [
                 RespBulkString(b"subscribe"),
@@ -846,7 +847,7 @@ class UnsubscribeCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         conn_id = construct_conn_id(conn)
-        channel_count = db.unsubscribe(self.channel_name.decode(), conn, conn_id)
+        channel_count = db.unsubscribe(self.channel_name, conn, conn_id)
         return RespArray(
             [
                 RespBulkString(b"unsubscribe"),
@@ -880,11 +881,9 @@ class PublishCommand(Command):
                 RespBulkString(self.msg),
             ]
         ).encode()
-        for _, subscribed_conn in db.get_subscribers(self.channel_name.decode()):
+        for _, subscribed_conn in db.get_subscribers(self.channel_name):
             subscribed_conn.sendall(publish_msg)
-        return RespInteger(
-            len(db.get_subscribers(self.channel_name.decode()))
-        ).encode_to_list()
+        return RespInteger(len(db.get_subscribers(self.channel_name))).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):

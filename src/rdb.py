@@ -10,7 +10,7 @@ class RdbFile:
         self.idx = 9  # start after magic string and version number
         self.buffer = []
         # rdb file only supports string types
-        self.key_values: dict[str, tuple[str, datetime | None]] = {}
+        self.key_values: dict[bytes, tuple[str, datetime | None]] = {}
         err = self.read_rdb()
         if err is not None:
             logger.error(
@@ -95,7 +95,7 @@ class RdbFile:
                 )
                 expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))
-                self.key_values[key.decode()] = (value.decode(), expiry)
+                self.key_values[key] = (value.decode(), expiry)
             case b"\xfc":
                 # expiry time in ms
                 expiry = datetime.fromtimestamp(
@@ -103,7 +103,7 @@ class RdbFile:
                 )
                 expiry = expiry.replace(tzinfo=None)
                 key, value = self.parse_kv(self.read(1))
-                self.key_values[key.decode()] = (value.decode(), expiry)
+                self.key_values[key] = (value.decode(), expiry)
             case b"\xfb":
                 # resizedb
                 db_hash_table_size = self.read_length_encoded_integer()[0]
@@ -119,7 +119,7 @@ class RdbFile:
             case _:
                 # type, key, value
                 key, value = self.parse_kv(op_code)
-                self.key_values[key.decode()] = (value.decode(), None)
+                self.key_values[key] = (value.decode(), None)
                 return
 
     def parse_kv(self, val_type: bytes) -> tuple[bytes, bytes]:

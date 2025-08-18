@@ -168,13 +168,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return "none"
 
     def zadd(self, key: bytes, score: float, name: bytes) -> int:
-        decoded_key = key.decode()
-        if decoded_key not in self.store:
-            self.store[decoded_key] = SortedSet()
-            self.key_types[decoded_key] = Database.ValType.SET
-        value = self.store[decoded_key]
+        if key not in self.store:
+            self.store[key] = SortedSet()
+            self.key_types[key] = Database.ValType.SET
+        value = self.store[key]
         # zadd only works for set values
-        key_type = self.key_types[decoded_key]
+        key_type = self.key_types[key]
         if key_type == Database.ValType.SET:
             set_val = cast(SortedSet, value)
             return set_val.add(name, score)
@@ -183,25 +182,17 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return 0
 
     def zrank(self, key: bytes, name: bytes) -> int:
-        decoded_key = key.decode()
-        if (
-            decoded_key not in self.store
-            or self.key_types[decoded_key] != Database.ValType.SET
-        ):
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
             return -1
-        value = self.store[decoded_key]
+        value = self.store[key]
         set_val = cast(SortedSet, value)
         return set_val.rank(name)
 
     def zrange(self, key: bytes, start: int, end: int) -> list[SortedSet.Item]:
         """[start:end+1], inclusive of end"""
-        decoded_key = key.decode()
-        if (
-            decoded_key not in self.store
-            or self.key_types[decoded_key] != Database.ValType.SET
-        ):
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
             return []
-        value = self.store[decoded_key]
+        value = self.store[key]
         set_val = cast(SortedSet, value)
         if end == -1:
             end = len(set_val)
@@ -210,57 +201,44 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return set_val.get_slice(start, end)
 
     def zcard(self, key: bytes) -> int:
-        decoded_key = key.decode()
-        if (
-            decoded_key not in self.store
-            or self.key_types[decoded_key] != Database.ValType.SET
-        ):
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
             return 0
-        return len(self.store[decoded_key])
+        return len(self.store[key])
 
     def zscore(self, key: bytes, name: bytes) -> float:
-        decoded_key = key.decode()
-        if (
-            decoded_key not in self.store
-            or self.key_types[decoded_key] != Database.ValType.SET
-        ):
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
             return 0
-        value = self.store[decoded_key]
+        value = self.store[key]
         set_val = cast(SortedSet, value)
         return set_val.score(name)
 
     def zrem(self, key: bytes, name: bytes) -> int:
-        decoded_key = key.decode()
-        if (
-            decoded_key not in self.store
-            or self.key_types[decoded_key] != Database.ValType.SET
-        ):
+        if key not in self.store or self.key_types[key] != Database.ValType.SET:
             return 0
-        value = self.store[decoded_key]
+        value = self.store[key]
         set_val = cast(SortedSet, value)
         return set_val.remove(name)
 
     def __init__(self, dir: str, dbfilename: str):
-        # TODO: standardise key type to bytes
         self.store: ThreadsafeDict[
-            str, Database.StrVal | Database.StreamVal | Database.ListVal | SortedSet
+            bytes, Database.StrVal | Database.StreamVal | Database.ListVal | SortedSet
         ] = ThreadsafeDict()
-        self.key_types: ThreadsafeDict[str, Database.ValType] = ThreadsafeDict()
+        self.key_types: ThreadsafeDict[bytes, Database.ValType] = ThreadsafeDict()
         # map of keys of streams to threads waiting for new elements
         self.stream_waitlist: ThreadsafeDefaultdict[
-            str, tuple[Lock, set[Semaphore]]
+            bytes, tuple[Lock, set[Semaphore]]
         ] = ThreadsafeDefaultdict(lambda: (Lock(), set()))
         # map of keys of lists to threads waiting for new elements
-        self.blpop_waitlist: ThreadsafeDefaultdict[str, Condition] = (
+        self.blpop_waitlist: ThreadsafeDefaultdict[bytes, Condition] = (
             ThreadsafeDefaultdict(Condition)
         )
         # xacts can only be started explicitly through a single function, so we avoid the overhead of a defaultdict here
-        self.xacts: ThreadsafeDict[ConnId, list] = ThreadsafeDict()
-        self.channels: ThreadsafeDefaultdict[ConnId, set[str]] = ThreadsafeDefaultdict(
-            set
+        self.xacts: ThreadsafeDict[ConnId, list[interfaces.Command]] = ThreadsafeDict()
+        self.channels: ThreadsafeDefaultdict[ConnId, set[bytes]] = (
+            ThreadsafeDefaultdict(set)
         )
         self.subscribers: ThreadsafeDefaultdict[
-            str, set[tuple[ConnId, socket.socket]]
+            bytes, set[tuple[ConnId, socket.socket]]
         ] = ThreadsafeDefaultdict(set)
 
         self.dir = dir
@@ -279,7 +257,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def __len__(self) -> int:
         return len(self.store)
 
-    def __getitem__(self, key: str) -> str | StreamVal | SortedSet | None:
+    def __getitem__(self, key: bytes) -> str | StreamVal | SortedSet | None:
         """Only returns the value, not the expiry"""
         if key not in self.store:
             return None
@@ -302,14 +280,14 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 return set_val
 
     # TODO: remove? can't reliably set self.keys with this
-    def __setitem__(self, key: str, value: StrVal):
+    def __setitem__(self, key: bytes, value: StrVal):
         self.key_types[key] = Database.ValType.STRING
         self.store[key] = value
 
-    def __delitem__(self, key: str):
+    def __delitem__(self, key: bytes):
         del self.store[key]
 
-    def __contains__(self, key: str) -> bool:
+    def __contains__(self, key: bytes) -> bool:
         return key in self.store
 
     def __str__(self) -> str:
@@ -318,12 +296,12 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def __repr__(self) -> str:
         return f"Database({repr(self.store)})"
 
-    def get_type(self, key: str) -> ValType:
+    def get_type(self, key: bytes) -> ValType:
         if key not in self.store:
             return Database.ValType.NONE
         return self.key_types[key]
 
-    def get_expiry(self, key: str) -> datetime | None:
+    def get_expiry(self, key: bytes) -> datetime | None:
         if key not in self.store:
             return None
         value = self.store[key]
@@ -335,7 +313,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         else:
             raise Exception(f"Called get_expiry on a non string key {key=}")
 
-    def expire_one(self, key: str) -> bool:
+    def expire_one(self, key: bytes) -> bool:
         # returns True if key was expired
         value = self.store[key]
         key_type = self.key_types[key]
@@ -363,14 +341,16 @@ class Database(metaclass=singleton_meta.SingletonMeta):
     def in_subscribed_mode(self, conn_id: ConnId) -> bool:
         return conn_id in self.channels
 
-    def subscribe(self, channel_name: str, conn: socket.socket, conn_id: ConnId) -> int:
+    def subscribe(
+        self, channel_name: bytes, conn: socket.socket, conn_id: ConnId
+    ) -> int:
         """Subscribe to a channel, and return the number of channels the client is subscribed to"""
         self.channels[conn_id].add(channel_name)
         self.subscribers[channel_name].add((conn_id, conn))
         return len(self.channels[conn_id])
 
     def unsubscribe(
-        self, channel_name: str, conn: socket.socket, conn_id: ConnId
+        self, channel_name: bytes, conn: socket.socket, conn_id: ConnId
     ) -> int:
         """Unubscribe from a channel, and return the number of channels the client is subscribed to"""
         if channel_name in self.channels[conn_id]:
@@ -378,10 +358,10 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             self.subscribers[channel_name].remove((conn_id, conn))
         return len(self.channels[conn_id])
 
-    def get_subscribers(self, channel_name: str) -> set[tuple[ConnId, socket.socket]]:
+    def get_subscribers(self, channel_name: bytes) -> set[tuple[ConnId, socket.socket]]:
         return self.subscribers[channel_name]
 
-    def rpush(self, key: str, values: ListVal) -> int:
+    def rpush(self, key: bytes, values: ListVal) -> int:
         if key not in self.store:
             self.store[key] = []
         elif key in self.store and self.key_types[key] != Database.ValType.LIST:
@@ -391,7 +371,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.list_notify_queue(key)
         return len(self.store[key])
 
-    def lpush(self, key: str, values: ListVal) -> int:
+    def lpush(self, key: bytes, values: ListVal) -> int:
         if key not in self.store:
             self.store[key] = []
         elif key in self.store and self.key_types[key] != Database.ValType.LIST:
@@ -401,19 +381,19 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         self.list_notify_queue(key)
         return len(self.store[key])
 
-    def list_notify_queue(self, key: str):
+    def list_notify_queue(self, key: bytes):
         cv = self.blpop_waitlist[key]
         with cv:
             cv.notify()
 
-    def lpop(self, key: str) -> bytes:
+    def lpop(self, key: bytes) -> bytes:
         return self.get_list(key).pop(0)
 
-    def lpop_multiple(self, key: str, count: int) -> ListVal:
+    def lpop_multiple(self, key: bytes, count: int) -> ListVal:
         values = [self.lpop(key) for _ in range(count)]
         return values
 
-    def blpop_timeout(self, key: str, timeout: float | None) -> bytes | None:
+    def blpop_timeout(self, key: bytes, timeout: float | None) -> bytes | None:
         """Blocks until the list is nonempty or timeout is reached"""
         if key in self.store and len(self.store[key]) != 0:
             return self.lpop(key)
@@ -429,15 +409,15 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 if was_notified:
                     return self.lpop(key)
 
-    def get_list(self, key: str) -> ListVal:
+    def get_list(self, key: bytes) -> ListVal:
         if self.key_types[key] != Database.ValType.LIST:
             raise Exception("Called get_list on a non list key {key=}")
         return cast(Database.ListVal, self.store[key])
 
-    def key_exists(self, key: str) -> bool:
+    def key_exists(self, key: bytes) -> bool:
         return key in self.store or key in self.store
 
-    def validate_stream_id(self, key: str, id: str) -> bytes | None:
+    def validate_stream_id(self, key: bytes, id: str) -> bytes | None:
         """Returns the error when validating the stream ID, if it exists"""
         if key not in self.store:
             return None
@@ -470,7 +450,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             return constants.STREAM_ID_NOT_GREATER_ERROR.encode()
         return None
 
-    def xadd(self, key: str, id: str, value: dict) -> str:
+    def xadd(self, key: bytes, id: str, value: dict) -> str:
         # stream key has already been validated
         if key in self.key_types and self.key_types[key] != Database.ValType.STREAM:
             raise Exception(f"key {key} is not a stream")
@@ -488,7 +468,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 sws.release()
         return str(processed_id)
 
-    def xrange(self, key: str, start: str, end: str) -> list[bytes]:
+    def xrange(self, key: bytes, start: str, end: str) -> list[bytes]:
         value = self.store[key]
         key_type = self.key_types[key]
         if key_type != Database.ValType.STREAM:
@@ -540,7 +520,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
         return RespArray(res).encode_to_list()
 
     def xread(
-        self, stream_keys: list[str], ids: list[str], timeout: int | None
+        self, stream_keys: list[bytes], ids: list[str], timeout: int | None
     ) -> list[bytes]:
         if timeout is not None:
             original_lens = [len(self.store[stream_key]) for stream_key in stream_keys]
@@ -598,7 +578,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
             res.append(
                 RespArray(
                     [
-                        RespBulkString(stream_key.encode()),
+                        RespBulkString(stream_key),
                         RespArray(inter),
                     ]
                 )
