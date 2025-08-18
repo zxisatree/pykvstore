@@ -124,12 +124,12 @@ def execute_cmd(
     elif in_subscribed_mode and not cmd.allowed_in_subscribed_mode:
         executed = data_types.RespSimpleError(
             f"ERR Can't execute '{cmd.keyword.decode().lower()}': only SUBSCRIBE / UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
-        ).encode_list()
+        ).encode_to_list()
     else:
         executed = cmd.execute(db, replica_handler, conn)
 
     for resp in executed:
-        logger.info(f"responding {resp}")
+        logger.info(f"responding with {resp}")
         conn.sendall(resp)
 
 

@@ -141,4 +141,4 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                     info.items(),
                 )
             )
-        ).encode_list()
+        ).encode_to_list()

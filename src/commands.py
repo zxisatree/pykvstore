@@ -46,9 +46,9 @@ class PingCommand(Command):
         if db.in_subscribed_mode(conn_id):
             return RespArray(
                 [RespSimpleString(b"pong"), RespBulkString(b"")]
-            ).encode_list()
+            ).encode_to_list()
         else:
-            return RespSimpleString(b"PONG").encode_list()
+            return RespSimpleString(b"PONG").encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -65,7 +65,7 @@ class EchoCommand(Command):
         self._keyword = b"ECHO"
 
     def execute(self, db, replica_handler, conn):
-        return RespSimpleString(self.msg).encode_list()
+        return RespSimpleString(self.msg).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -147,14 +147,14 @@ class IncrCommand(Command):
             except ValueError:
                 return RespSimpleError(
                     b"ERR value is not an integer or out of range"
-                ).encode_list()
+                ).encode_to_list()
             expiry = db.get_expiry(decoded_key)
         else:
             new_value = str(1)
             expiry = None
 
         db[decoded_key] = (new_value, expiry)
-        return RespInteger(int(new_value)).encode_list()
+        return RespInteger(int(new_value)).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -174,9 +174,9 @@ class GetCommand(Command):
         if self.key.decode() in db:
             value = db[self.key.decode()]
             if isinstance(value, str):
-                return RespBulkString(value.encode()).encode_list()
+                return RespBulkString(value.encode()).encode_to_list()
             elif isinstance(value, list):
-                return RespBulkString(str(value).encode()).encode_list()
+                return RespBulkString(str(value).encode()).encode_to_list()
         return transform_to_execute_output(constants.NULL_BULK_RESP_STRING)
 
     @classmethod
@@ -271,7 +271,7 @@ class ReplConfGetAckCommand(Command):
                 RespBulkString(b"ACK"),
                 RespBulkString(str(replica_handler.master_repl_offset).encode()),
             ]
-        ).encode_list()
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -351,14 +351,14 @@ class ConfigGetCommand(Command):
                     RespBulkString(self.key),
                     RespBulkString(db.dir.encode()),
                 ]
-            ).encode_list()
+            ).encode_to_list()
         elif self.key.upper() == b"DBFILENAME":
             return RespArray(
                 [
                     RespBulkString(self.key),
                     RespBulkString(db.dbfilename.encode()),
                 ]
-            ).encode_list()
+            ).encode_to_list()
         else:
             return transform_to_execute_output(constants.OK_SIMPLE_RESP_STRING)
 
@@ -386,7 +386,7 @@ class KeysCommand(Command):
                     db.rdb.key_values.keys(),
                 )
             )
-        ).encode_list()
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -428,7 +428,7 @@ class WaitCommand(Command):
             replica_handler.ack_count
             if replica_handler.ack_count > 0
             else len(replica_handler.slaves)
-        ).encode_list()
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -450,8 +450,8 @@ class TypeCommand(Command):
         if self.key.decode() in db:
             return RespSimpleString(
                 str(db.get_type(self.key.decode())).encode()
-            ).encode_list()
-        return RespSimpleString(b"none").encode_list()
+            ).encode_to_list()
+        return RespSimpleString(b"none").encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -491,7 +491,7 @@ class ExecCommand(Command):
     def execute(self, db, replica_handler, conn):
         conn_id = construct_conn_id(conn)
         if not db.xact_exists(conn_id):
-            return RespSimpleError(b"ERR EXEC without MULTI").encode_list()
+            return RespSimpleError(b"ERR EXEC without MULTI").encode_to_list()
         cmds = db.exec_xact(conn_id)
         responses = [cmd.execute(db, replica_handler, conn) for cmd in cmds]
         flattened = []
@@ -501,7 +501,7 @@ class ExecCommand(Command):
                     flattened.append(RespPlainString(inner_response))
             else:
                 flattened.append(RespPlainString(response))
-        return RespArray(flattened).encode_list()
+        return RespArray(flattened).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -520,7 +520,7 @@ class DiscardCommand(Command):
     def execute(self, db, replica_handler, conn):
         conn_id = construct_conn_id(conn)
         if not db.xact_exists(conn_id):
-            return RespSimpleError(b"ERR DISCARD without MULTI").encode_list()
+            return RespSimpleError(b"ERR DISCARD without MULTI").encode_to_list()
         db.exec_xact(conn_id)
         return transform_to_execute_output(constants.OK_SIMPLE_RESP_STRING)
 
@@ -546,7 +546,7 @@ class RpushCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         length = db.rpush(self.key.decode(), self.values)
-        return RespInteger(length).encode_list()
+        return RespInteger(length).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -574,7 +574,7 @@ class LpushCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         length = db.lpush(self.key.decode(), self.values[::-1])
-        return RespInteger(length).encode_list()
+        return RespInteger(length).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -598,10 +598,12 @@ class LpopCommand(Command):
     def execute(self, db, replica_handler, conn):
         if self.count == 1:
             value = db.lpop(self.key.decode())
-            return RespBulkString(value).encode_list()
+            return RespBulkString(value).encode_to_list()
         else:
             values = db.lpop_multiple(self.key.decode(), self.count)
-            return RespArray([RespBulkString(value) for value in values]).encode_list()
+            return RespArray(
+                [RespBulkString(value) for value in values]
+            ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -627,7 +629,7 @@ class BlpopCommand(Command):
         if value:
             return RespArray(
                 [RespBulkString(self.key), RespBulkString(value)]
-            ).encode_list()
+            ).encode_to_list()
         else:
             # timed out
             return transform_to_execute_output(constants.NULL_BULK_RESP_STRING)
@@ -659,7 +661,7 @@ class LlenCommand(Command):
             length = 0
         else:
             length = len(db.get_list(self.key.decode()))
-        return RespInteger(length).encode_list()
+        return RespInteger(length).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -693,7 +695,7 @@ class LrangeCommand(Command):
             adjusted_stop = self.stop + 1
         return RespArray(
             [RespBulkString(val) for val in retrieved_list[self.start : adjusted_stop]]
-        ).encode_list()
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -723,7 +725,7 @@ class XaddCommand(Command):
         stream_entry_id = raw_stream_entry_id.data
         err = db.validate_stream_id(self.stream_key.decode(), stream_entry_id.decode())
         if err is not None:
-            return RespSimpleError(err).encode_list()
+            return RespSimpleError(err).encode_to_list()
 
         kv_dict = {}
         for i in range(1, len(self.data), 2):
@@ -734,7 +736,7 @@ class XaddCommand(Command):
         processed_stream_id = db.xadd(
             self.stream_key.decode(), stream_entry_id.decode(), kv_dict
         )
-        return RespBulkString(processed_stream_id.encode()).encode_list()
+        return RespBulkString(processed_stream_id.encode()).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -823,7 +825,7 @@ class SubscribeCommand(Command):
                 RespBulkString(self.channel_name),
                 RespInteger(channel_count),
             ]
-        ).encode_list()
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -851,7 +853,7 @@ class UnsubscribeCommand(Command):
                 RespBulkString(self.channel_name),
                 RespInteger(channel_count),
             ]
-        ).encode_list()
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -882,7 +884,7 @@ class PublishCommand(Command):
             subscribed_conn.sendall(publish_msg)
         return RespInteger(
             len(db.get_subscribers(self.channel_name.decode()))
-        ).encode_list()
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -903,7 +905,9 @@ class ZaddCommand(Command):
         self.name = name
 
     def execute(self, db, replica_handler, conn):
-        return RespInteger(int(db.zadd(self.key, self.score, self.name))).encode_list()
+        return RespInteger(
+            int(db.zadd(self.key, self.score, self.name))
+        ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -930,7 +934,7 @@ class ZrankCommand(Command):
         if result == -1:
             return transform_to_execute_output(constants.NULL_BULK_RESP_STRING)
         else:
-            return RespInteger(result).encode_list()
+            return RespInteger(result).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -959,7 +963,7 @@ class ZrangeCommand(Command):
         else:
             return RespArray(
                 [RespBulkString(item.name) for item in result]
-            ).encode_list()
+            ).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -982,7 +986,7 @@ class ZcardCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         result = db.zcard(self.key)
-        return RespInteger(result).encode_list()
+        return RespInteger(result).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -1007,7 +1011,7 @@ class ZscoreCommand(Command):
         if result == -1:
             return transform_to_execute_output(constants.NULL_BULK_RESP_STRING)
         else:
-            return RespBulkString(str(result).encode()).encode_list()
+            return RespBulkString(str(result).encode()).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -1030,7 +1034,7 @@ class ZremCommand(Command):
 
     def execute(self, db, replica_handler, conn):
         result = db.zrem(self.key, self.name)
-        return RespInteger(result).encode_list()
+        return RespInteger(result).encode_to_list()
 
     @classmethod
     def craft_request(cls, *args: str):

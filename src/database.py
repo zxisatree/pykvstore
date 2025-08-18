@@ -537,7 +537,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     ]
                 )
             )
-        return RespArray(res).encode_list()
+        return RespArray(res).encode_to_list()
 
     def xread(
         self, stream_keys: list[str], ids: list[str], timeout: int | None
@@ -603,7 +603,7 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                     ]
                 )
             )
-        return RespArray(res).encode_list()
+        return RespArray(res).encode_to_list()
 
 
 @functools.total_ordering

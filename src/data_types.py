@@ -14,7 +14,7 @@ class RespDataType(ABC):
     @abstractmethod
     def encode(self) -> bytes: ...
 
-    def encode_list(self) -> list[bytes]:
+    def encode_to_list(self) -> list[bytes]:
         return [self.encode()]
 
     @staticmethod
