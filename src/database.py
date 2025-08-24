@@ -132,10 +132,13 @@ class Database(metaclass=singleton_meta.SingletonMeta):
                 self.rdb = rdb.RdbFile(f.read())
         else:
             self.rdb = rdb.RdbFile(constants.EMPTY_RDB_FILE)
-        for key, value in self.rdb.key_values.items():
+        self.init_from_rdb(self.rdb)
+        logger.info(f"db initialised with {self.store=}")
+
+    def init_from_rdb(self, rdb_file: rdb.RdbFile):
+        for key, value in rdb_file.key_values.items():
             self.store[key] = value
             self.key_types[key] = Database.ValType.STRING  # only support strings in RDB
-        logger.info(f"db initialised with {self.store=}")
 
     def __len__(self) -> int:
         return len(self.store)

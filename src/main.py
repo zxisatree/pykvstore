@@ -75,6 +75,7 @@ def accept_conns(
             ready = select.select([server_socket, read_socket], [], [])
             if ready[0]:
                 if read_socket in ready[0]:
+                    # write_socket was closed, cleanup and shutdown this thread
                     break
                 conn, addr = server_socket.accept()
                 thread = threading.Thread(

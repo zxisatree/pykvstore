@@ -225,5 +225,7 @@ def parse_resp_cmd(
         channel_name = resp_elements[1].data
         msg = resp_elements[2].data
         return commands.PublishCommand(raw_cmd, channel_name, msg)
-    else:
+    elif cmd_str.startswith(b"REDIS"):
         return commands.RdbFileCommand(raw_cmd)
+    else:
+        raise Exception(f"skipping unknown command {raw_cmd=}")
