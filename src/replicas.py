@@ -1,4 +1,3 @@
-import threading
 import uuid
 import socket
 from enum import Enum
@@ -47,9 +46,20 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.master_repl_offset = 0
         self.handshake_state = ReplicaHandler.ReplicaHandshakeState.READY
         self.db = db
-        # attempt to connect to master
-        if not is_master:
-            threading.Thread(target=self.connect_to_master).start()
+
+    def master_recv_loop(self):
+        while self.handshake_state != ReplicaHandler.ReplicaHandshakeState.DONE:
+            self.connect_to_master()
+        while True:
+            logger.info("replica waiting for master...")
+            data = self.master_conn.recv(constants.BUFFER_SIZE)
+            logger.info(f"replica from master: raw {data=}")
+            if not data:
+                logger.info("EOF/no data received, replica breaking")
+                break
+            cmds = codec.parse_cmd(data)
+            logger.info(f"replica {cmds=}")
+            self._execute_cmds(cmds)
 
     def connect_to_master(self):
         """Performs the master slave handshake. Has the side effect of executing any commands that come directly after the handshake (there should be none)."""
@@ -116,21 +126,6 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
                 self._execute_cmds(rest_cmds)
                 logger.info("connect_to_master_sm complete")
                 self.handshake_state = ReplicaHandler.ReplicaHandshakeState.DONE
-                self.master_recv_loop()
-                return
-        self.connect_to_master()
-
-    def master_recv_loop(self):
-        while True:
-            logger.info("replica waiting for master...")
-            data = self.master_conn.recv(constants.BUFFER_SIZE)
-            logger.info(f"replica from master: raw {data=}")
-            if not data:
-                logger.info("EOF/no data received, replica breaking")
-                break
-            cmds = codec.parse_cmd(data)
-            logger.info(f"replica {cmds=}")
-            self._execute_cmds(cmds)
 
     def _execute_cmds(self, cmds: list[commands.Command]):
         for cmd in cmds:

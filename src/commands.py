@@ -78,6 +78,7 @@ class EchoCommand(Command):
 
 class SetCommand(Command):
     expected_arg_count = [2, 3]
+    propogated_to_replicas = True
 
     def __init__(
         self,
@@ -97,7 +98,6 @@ class SetCommand(Command):
         self._keyword = b"SET"
 
     def execute(self, db, replica_handler, conn):
-        replica_handler.propogate(self._raw_cmd)
         db.set_string_value(self.key, (self.value.decode(), self.expiry))
         return transform_to_execute_output(constants.OK_SIMPLE_RESP_STRING)
 
@@ -257,13 +257,13 @@ class ReplConfAckCommand(Command):
 
 class ReplConfGetAckCommand(Command):
     expected_arg_count = [0]
+    propogated_to_replicas = True
 
     def __init__(self, raw_cmd: bytes):
         self._raw_cmd = raw_cmd
         self._keyword = b"REPLCONF"
 
     def execute(self, db, replica_handler, conn):
-        replica_handler.propogate(self._raw_cmd)
         return RespArray(
             [
                 RespBulkString(b"REPLCONF"),

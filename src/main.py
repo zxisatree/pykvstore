@@ -28,6 +28,9 @@ def main(args: Sequence[str] | None = None):
     replica_handler = replicas.ReplicaHandler(
         False if replicaof else True, "localhost", port, replicaof, db
     )
+    # attempt to connect to master
+    if replicaof:
+        threading.Thread(target=replica_handler.master_recv_loop).start()
 
     # for signalling to the accepting thread to close
     # automatically cleaned up after program exits
@@ -125,6 +128,8 @@ def execute_cmd(
             f"ERR Can't execute '{cmd.keyword.decode().lower()}': only SUBSCRIBE / UNSUBSCRIBE / PING / QUIT / RESET are allowed in subscribed mode".encode()
         ).encode_to_list()
     else:
+        if cmd.propogated_to_replicas:
+            replica_handler.propogate(cmd._raw_cmd)
         executed = cmd.execute(db, replica_handler, conn)
 
     for resp in executed:
