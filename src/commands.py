@@ -247,7 +247,7 @@ class ReplConfAckCommand(Command):
             f"incrementing {replica_handler.ack_count=} to {replica_handler.ack_count + 1}"
         )
         replica_handler.ack_count += 1
-        return [b""]
+        return []
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -309,7 +309,7 @@ class FullResyncCommand(Command):
         self._keyword = b"FULLRESYNC"
 
     def execute(self, db, replica_handler, conn):
-        return [b""]
+        return []
 
     @classmethod
     def craft_request(cls, *args: str):
@@ -327,7 +327,8 @@ class RdbFileCommand(Command):
 
     # slave received a RDB file
     def execute(self, db, replica_handler, conn):
-        return [b""]
+        db.init_from_rdb(self.rdbfile.data)
+        return []
 
     @classmethod
     def craft_request(cls, *args: str):

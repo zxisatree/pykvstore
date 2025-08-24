@@ -342,5 +342,4 @@ def dispatch(cmd: bytes, pos: int) -> tuple[RespDataType, int]:
     elif data_type == b"+":
         return RespSimpleString.decode(cmd, pos)
     else:
-        logger.info(f"Raising exception: Unsupported data type {data_type}")
         raise Exception(f"Unsupported data type {data_type}")

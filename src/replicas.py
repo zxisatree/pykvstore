@@ -1,6 +1,7 @@
 import threading
 import uuid
 import socket
+from enum import Enum
 
 import codec
 import commands
@@ -12,6 +13,17 @@ import singleton_meta
 
 
 class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
+    class ReplicaHandshakeState(Enum):
+        """Current state of the replica master handshake"""
+
+        READY = 0
+        """Ready to begin handshake"""
+        PING = 1
+        REPLCONF_PORT = 2
+        REPLCONF_CAPA_PSYNC = 3
+        PSYNC = 4
+        DONE = 5
+
     def __init__(
         self,
         is_master: bool,
@@ -33,88 +45,109 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.role = "master" if is_master else "slave"
         self.master_replid = self.id if is_master else "?"
         self.master_repl_offset = 0
+        self.handshake_state = ReplicaHandler.ReplicaHandshakeState.READY
+        self.db = db
         # attempt to connect to master
         if not is_master:
-            threading.Thread(target=self.connect_to_master, args=(db,)).start()
+            threading.Thread(target=self.connect_to_master).start()
 
-    def connect_to_master(self, db: database.Database):
-        self.master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.master_conn.settimeout(constants.CONN_TIMEOUT)
-        self.master_conn.connect((self.master_ip, int(self.master_port)))
+    def connect_to_master(self):
+        """Performs the master slave handshake. Side effect of executing any commands that come directly after the handshake (there should be none)."""
+        # if we get more cases, can use a table instead of hardcoding cases
+        match self.handshake_state:
+            case ReplicaHandler.ReplicaHandshakeState.READY:
+                master_conn = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                master_conn.settimeout(constants.CONN_TIMEOUT)
+                master_conn.connect((self.master_ip, int(self.master_port)))
+                self.master_conn = master_conn
+                self.handshake_state = ReplicaHandler.ReplicaHandshakeState.PING
+            case ReplicaHandler.ReplicaHandshakeState.PING:
+                self.master_conn.sendall(commands.craft_command("PING").encode())
+                self._expect_handshake(b"+PONG\r\n")
+                self.handshake_state = (
+                    ReplicaHandler.ReplicaHandshakeState.REPLCONF_PORT
+                )
+            case ReplicaHandler.ReplicaHandshakeState.REPLCONF_PORT:
+                self.master_conn.sendall(
+                    commands.craft_command(
+                        "REPLCONF", "listening-port", str(self.port)
+                    ).encode()
+                )
+                self._expect_handshake(constants.OK_SIMPLE_RESP_STRING.encode())
+                self.handshake_state = (
+                    ReplicaHandler.ReplicaHandshakeState.REPLCONF_CAPA_PSYNC
+                )
+            case ReplicaHandler.ReplicaHandshakeState.REPLCONF_CAPA_PSYNC:
+                self.master_conn.sendall(
+                    commands.craft_command("REPLCONF", "capa", "psync2").encode()
+                )
+                self._expect_handshake(constants.OK_SIMPLE_RESP_STRING.encode())
+                self.handshake_state = ReplicaHandler.ReplicaHandshakeState.PSYNC
+            case ReplicaHandler.ReplicaHandshakeState.PSYNC:
+                self.master_conn.sendall(
+                    commands.craft_command(
+                        "PSYNC", self.master_replid, str(-1)
+                    ).encode()
+                )
+                # expect any rdb file
+                data = self.master_conn.recv(constants.BUFFER_SIZE)
+                cmds = codec.parse_cmd(data)
+                logger.info(f"handshake {cmds=}")
 
-        self.master_conn.sendall(commands.craft_command("PING").encode())
-        data = self.master_conn.recv(constants.BUFFER_SIZE)
-        logger.info(f"Replica sent ping, got {data=}")
-        # check if we get PONG
-        if data != b"+PONG\r\n":
-            logger.error("Failed to connect to master, did not get PONG from PING")
-            return
-
-        self.master_conn.sendall(
-            commands.craft_command(
-                "REPLCONF", "listening-port", str(self.port)
-            ).encode()
-        )
-        data = self.master_conn.recv(constants.BUFFER_SIZE)
-        logger.info(f"Replica sent REPLCONF 1, got {data=}")
-        # check if we get OK
-        if data != constants.OK_SIMPLE_RESP_STRING.encode():
-            logger.info("Failed to connect to master")
-            return
-
-        self.master_conn.sendall(
-            commands.craft_command("REPLCONF", "capa", "psync2").encode()
-        )
-        data = self.master_conn.recv(constants.BUFFER_SIZE)
-        logger.info(f"Replica sent REPLCONF 2, got {data=}")
-        # check if we get OK
-        if data != constants.OK_SIMPLE_RESP_STRING.encode():
-            logger.info("Failed to connect to master")
-            return
-
-        self.master_conn.sendall(
-            commands.craft_command("PSYNC", self.master_replid, str(-1)).encode()
-        )
-        logger.info("Replica sent PSYNC")
-        handshake_step = 0
-
-        while True:
-            logger.info("Replica waiting for master...")
-            data = self.master_conn.recv(constants.BUFFER_SIZE)
-            logger.info(f"Replica from master: raw {data=}")
-            if not data:
-                logger.info("Replica breaking")
-                break
-
-            cmds = codec.parse_cmd(data)
-            logger.info(f"Replica {cmds=}")
-            for cmd in cmds:
-                self.respond_to_master(cmd, db)
-                if handshake_step != 2:
-                    handshake_step = self.handle_handshake_psync(handshake_step, cmd)
+                # receive the FULLRESYNC command
+                if not cmds or not isinstance(cmds[0], commands.FullResyncCommand):
+                    raise Exception(f"replica expected FullResyncCommand, got {data}")
+                # until we write a parser with a buffer, hack it
+                if len(cmds) >= 2:
+                    if not isinstance(cmds[1], commands.RdbFileCommand):
+                        raise Exception(f"replica expected RDB file, got {data}")
+                    rdb_cmd = cmds[1]
+                    rest_cmds = cmds[2:]
                 else:
-                    # need to update offset based on cmd in list, not based on full data
-                    self.master_repl_offset += len(cmd.raw_cmd)
+                    data = self.master_conn.recv(constants.BUFFER_SIZE)
+                    cmds = codec.parse_cmd(data)
+                    if not cmds or not isinstance(cmds[0], commands.RdbFileCommand):
+                        raise Exception(f"replica expected RDB file, got {data}")
+                    rdb_cmd = cmds[0]
+                    rest_cmds = cmds[1:]
+                # receive the RDB file, then leave the rest to the main loop
+                # initialise DB with the RDB file
+                rdb_cmd.execute(self.db, self, self.master_conn)
+                self._execute_cmds(rest_cmds)
+                logger.info("connect_to_master_sm complete")
+                self.handshake_state = ReplicaHandler.ReplicaHandshakeState.DONE
+                self.master_recv_loop()
+                return
+        self.connect_to_master()
 
-    def handle_handshake_psync(
-        self, handshake_step: int, cmd: "commands.Command"
-    ) -> int:
-        # check if we get FULLRESYNC and RDB file
-        if handshake_step == 0 and isinstance(cmd, commands.FullResyncCommand):
-            logger.info("Replica got FULLRESYNC")
-            return 1
-        elif handshake_step == 1 and isinstance(cmd, commands.RdbFileCommand):
-            logger.info("Replica got RDB file")
-            return 2
-        else:
-            return handshake_step
+    def master_recv_loop(self):
+        while True:
+            logger.info("replica waiting for master...")
+            data = self.master_conn.recv(constants.BUFFER_SIZE)
+            logger.info(f"replica from master: raw {data=}")
+            if not data:
+                logger.info("EOF/no data received, replica breaking")
+                break
+            cmds = codec.parse_cmd(data)
+            logger.info(f"replica {cmds=}")
+            self._execute_cmds(cmds)
 
-    def respond_to_master(self, cmd: "commands.Command", db: database.Database):
-        executed = cmd.execute(db, self, self.master_conn)
-        if isinstance(cmd, commands.ReplConfGetAckCommand):
-            for resp in executed:
-                logger.info(f"responding to master: {resp}")
-                self.master_conn.sendall(resp)
+    def _execute_cmds(self, cmds: list[commands.Command]):
+        for cmd in cmds:
+            executed = cmd.execute(self.db, self, self.master_conn)
+            if isinstance(cmd, commands.ReplConfGetAckCommand):
+                for resp in executed:
+                    logger.info(f"responding to master: {resp}")
+                    self.master_conn.sendall(resp)
+            # need to update offset based on cmd in list, not based on full data
+            self.master_repl_offset += len(cmd.raw_cmd)
+
+    def _expect_handshake(self, expected: bytes):
+        """Receives data from master and asserts that the response is expected, based on self.handshake_state"""
+        data = self.master_conn.recv(len(expected))
+        if data != expected:
+            raise Exception(f"replica expected {expected}, got {data}")
+        return data
 
     def add_slave(self, slave: socket.socket):
         self.slaves.append(slave)
