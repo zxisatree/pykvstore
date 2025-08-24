@@ -21,11 +21,9 @@ import replicas
 
 
 def main(args: Sequence[str] | None = None):
-    either = validate_parse_args(setup_argparser().parse_args(args))
-    if either[1] is not None:
-        logger.error(f"Error parsing command line arguments: {either[1]}")
-        return
-    port, replicaof, rdbdir, dbfilename = either[0]
+    port, replicaof, rdbdir, dbfilename = validate_parse_args(
+        setup_argparser().parse_args(args)
+    )
     db = database.Database(rdbdir, dbfilename)
     replica_handler = replicas.ReplicaHandler(
         False if replicaof else True, "localhost", port, replicaof, db
@@ -136,27 +134,26 @@ def execute_cmd(
 
 def validate_parse_args(
     args: argparse.Namespace,
-) -> tuple[tuple[int, tuple[str, int] | None, str, str], None] | tuple[None, str]:
-    if not isinstance(args.port, int) or args.port < 0 or args.port > 65535:
-        return None, "Invalid port number"
+) -> tuple[int, tuple[str, int] | None, str, str]:
+    """Throws ValueError if validation fails"""
+    if args.port < 0 or args.port > 65535:
+        raise ValueError(
+            f"Invalid port number {args.port}, should be between 0 and 65535"
+        )
+    replicaof = None
     if args.replicaof is not None:
         replica_host, replica_port = args.replicaof.split(" ")
         try:
             replicaof_int = int(replica_port)
         except ValueError:
-            return None, "replicaof port is not an integer"
-        return (
-            args.port,
-            (replica_host, replicaof_int),
-            args.dir,
-            args.dbfilename,
-        ), None
-    return (args.port, None, args.dir, args.dbfilename), None
+            raise ValueError("replicaof port is not an integer")
+        replicaof = (replica_host, replicaof_int)
+    return args.port, replicaof, args.dir, args.dbfilename
 
 
 def setup_argparser() -> argparse.ArgumentParser:
     argparser = argparse.ArgumentParser(
-        prog="Readthis", description="Redis clone for Windows"
+        prog="pykvstore", description="Key value database"
     )
     argparser.add_argument(
         "--port", type=int, default=6379, help="Port to listen on (default: 6379)"

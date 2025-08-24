@@ -37,7 +37,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
         self.id = str(uuid.uuid4())
         self.ip = ip
         self.port = port
-        if replica_of is not None:
+        if replica_of:
             self.master_ip = replica_of[0]
             self.master_port = replica_of[1]
         self.slaves: list[socket.socket] = []
@@ -52,7 +52,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             threading.Thread(target=self.connect_to_master).start()
 
     def connect_to_master(self):
-        """Performs the master slave handshake. Side effect of executing any commands that come directly after the handshake (there should be none)."""
+        """Performs the master slave handshake. Has the side effect of executing any commands that come directly after the handshake (there should be none)."""
         # if we get more cases, can use a table instead of hardcoding cases
         match self.handshake_state:
             case ReplicaHandler.ReplicaHandshakeState.READY:
@@ -158,7 +158,7 @@ class ReplicaHandler(metaclass=singleton_meta.SingletonMeta):
             slave.sendall(raw_cmd)
 
     def get_info(self) -> list[bytes]:
-        # encode each kv as a RespBulkString
+        """Encodes each kv as a RespBulkString"""
         info = {
             "role": self.role,
             "connected_slaves": self.connected_slaves,
